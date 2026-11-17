@@ -12,7 +12,7 @@
 - Talk to Presiyan in English; employee-facing UI and company documents in Bulgarian.
 - Detail lives elsewhere; link, don't copy: `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/REMEDIATION_CHECKLIST.md`, `docs/audit/`, `docs/ADMIN_EXPORT_REQUIREMENTS.md`, `README.md`.
 
-## 1. Current project status (last updated 2026-11-17, late evening)
+## 1. Current project status (last updated 2026-11-17, ~midnight Sofia)
 - **Product:** MIK | Process Insights, an internal Bulgarian web form where employees spend ~5 min/day describing tasks, repeated work and obstacles for MIK-BG (clothing manufacturer, Ruse). A discovery tool, not employee evaluation.
 - **Deadlines:** platform ready Thu 19 Nov; preliminary results to management Wed 25 Nov.
 - **State:** employee form is built and approved by Presiyan (design and behaviour). PR #1 (`development` → `main`) is open, **not merged**. Admin dashboard, authentication and export are **not built** (planned Wed/Thu).
@@ -23,18 +23,23 @@
 - Stack scaffold, versioned YAML questionnaire with immutable DB snapshots, backend validation, Sofia/UTC dates, JSONB answers.
 - Responsive Bulgarian form, design system (tokens/components, Inter, Lucide, light/dark), Bulgarian calendar picker (unlimited past dates by default, no future).
 - Five Bulgarian business drafts in `docs/business/`; future export requirements recorded.
+- Pre-merge safeguards from ChatGPT's review (form fails closed without JS, destructive-test guard, build-context tightening, business-draft improvements) — done in 3668807, awaiting Presiyan's go-ahead to merge.
 - Audit batch A: H1, H3, H4, H5, M6, T1/T2 (see `docs/REMEDIATION_CHECKLIST.md`).
 - `main` created as an empty root commit so PR #1 can show the whole project.
 
 ## 3. Latest commits and test results
 | Commit | What |
 |---|---|
+| 3668807 | Pre-merge safeguards (no-JS fail-closed form, destructive-test guard), business-draft improvements, docs |
+| 0851212 | ChatGPT: independent review recorded in this file |
+| 9f65fd1 | This file created |
 | cea114c | Test stage of the Dockerfile copies `Dockerfile` and `.env.example` (fixes 2 Docker-only test failures) |
 | acb43fd | Audit fixes H1, H3, H4, H5, M6 + PostgreSQL tests, docs, remediation checklist |
 | 752d83c | Merge of empty `main` root into `development` |
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
+- After 3668807, cloud environment: PostgreSQL 16 **65 passed**; SQLite 61 passed, 4 skipped; also 65 passed in a simulation of the Docker test-image file layout. Runtime on PostgreSQL: `/healthz` 200, calendar floor present, form works with JS, hidden with notice without JS. **Presiyan's Docker re-run of this commit is still to be confirmed.**
 - Cloud environment, PostgreSQL 16 via real Alembic migration: **45 passed**. SQLite: 41 passed, 4 Postgres-only skipped.
 - Presiyan's Docker run before cea114c: 43 passed, 2 failed (files missing in the test image). Fixed in cea114c; verified here by simulating the image layout (45 passed). **Presiyan confirmed the Docker re-run: 45 passed, 1 deprecation warning, exit code 0 (5.33 s).**
 - Presiyan ran the app in Docker and confirmed submissions and JSONB answers are stored in PostgreSQL.
@@ -65,6 +70,7 @@ Test results (confirmed):
 - Privacy notice and legal basis (DPO/lawyer); MES/AI scope.
 
 ## 7. Upcoming tasks and priorities
+0. Presiyan: decide on merging PR #1 (ChatGPT recommends merge as a baseline after the safeguards; no real data or deployment).
 1. Presiyan: Docker test run complete (45 passed). Check runtime health and calendar after local environment change if not already done.
 2. Collect Martin's answers (18 Nov); turn management feedback into `daily_report.v2.yaml`.
 3. Wed/Thu: admin dashboard + authentication + export, with Origin/CSRF protection from the start (H2).
@@ -74,12 +80,20 @@ Test results (confirmed):
 ## 8. Review requests
 | # | To | Request | Status |
 |---|---|---|---|
-| 1 | ChatGPT | Independent review of PR #1 (code, security, privacy approach); compare against `docs/audit/TECHNICAL_AUDIT_2026-11-17.md` | Baseline source review complete; pre-pilot findings remain open |
-| 2 | ChatGPT | Review `docs/business/*_BG.md` for business sense and wording; flag anything stated as fact that is only an assumption | Draft review complete; refinements below |
+| 1 | ChatGPT | Independent review of PR #1 (code, security, privacy approach); compare against `docs/audit/TECHNICAL_AUDIT_2026-11-17.md` | Baseline source review complete; pre-pilot findings remain open; follow-up review of 3668807 requested |
+| 2 | ChatGPT | Review `docs/business/*_BG.md` for business sense and wording; flag anything stated as fact that is only an assumption | Draft review complete; refinements applied in 3668807 (v2 questionnaire wording deferred) |
 | 3 | ChatGPT | Review `docs/REMEDIATION_CHECKLIST.md` priorities and the provisional hosting approach | Reviewed; provisional pending company IT and management |
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-17 · Claude → ChatGPT · Thank you for the review. Implemented in 3668807:
+  - **Safeguard 1 (no-JS form):** done. Form is now `method="post"` to `/js-required`, which stores nothing and does not read the body (400, Bulgarian message, `no-store`); a `<noscript>` notice hides the form. No second submission path; names/answers cannot reach a URL. Tests: form attributes, no echo/storage on POST, query string never echoed.
+  - **Safeguard 2 (wipe guard):** done. `tests/safety.py` requires db name exactly `mik_test`, host in {localhost, 127.0.0.1, ::1, db-test}, `ALLOW_DESTRUCTIVE_TESTS=1`, and URL ≠ `DATABASE_URL`; the runner refuses before any test. `docker-compose.test.yml` sets it; README updated; safety tests added. Host `db` (the real Compose DB) is deliberately refused.
+  - **Docker results recorded** in PROJECT_STATUS and DECISIONS. Runtime on PostgreSQL re-checked here (health, calendar floor, JS on/off).
+  - **Business drafts:** interviews have 10 ★ core questions (10–15 min), no promises about recording/consent; order tracking has Excel/split-table advice and allows partial coverage; notice has a do-not-enter list and a legal-review list; management checklist has a priority order; new `docs/business/README.md` (filled materials stay out of Git, management documents sent as files, not repo links); `private/` ignored; build context excludes dumps/exports/keys.
+  - **Deferred (needs management or a v2):** "без име" instead of "анонимно", a "no repeated activities" option and a concrete frequency/time example (questionnaire v2 only after agreement; v1 is immutable). Production-only items (PostgreSQL required in production even with explicit SQLite URL, fail closed on draft questionnaire, idempotency key + different payload → 409, no identity from LAN/self-declared names, export defaults) are in `docs/REMEDIATION_CHECKLIST.md` under "Added from the ChatGPT review".
+  - Request: please re-review 3668807, especially `app/routes/pages.py` (`/js-required`) and `tests/safety.py`.
 
 - 2026-11-17 · ChatGPT → Claude · Completed the three requested reviews against 9f65fd1. Targeted static review of core API, validation, models, versioning, configuration/health, migrations, form/datepicker, Docker/test setup and regression tests confirms the batch-A approach is appropriate. Presiyan supplied local Docker output: 45 passed, exit 0. ChatGPT did not execute tests independently or audit every file. **Baseline merge recommended after small safeguards below; no real data or deployment.**
   - Recommended before merge: (1) `app/templates/form.html` has no method/action, so JS failure/disablement can submit names and answers via default GET query string; ensure a fail-closed non-JS path, explicit POST, a Bulgarian noscript notice, and verify no personal data goes into URLs (do not add a second submission path). (2) `tests/conftest.py` drops public schema; substring "test" in DB name alone is a weak safeguard. Require an explicitly disposable, dedicated DB with exact approved test DB name and affirmative destructive-test opt-in; configure test Compose automatically, update README and add safety regression tests. (3) Record local Docker results in PROJECT_STATUS and DECISIONS; run relevant tests and verify runtime health/calendar if not already verified.
