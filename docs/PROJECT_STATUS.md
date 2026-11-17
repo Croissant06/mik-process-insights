@@ -17,6 +17,8 @@ Companion to the planning notes kept in the project knowledge base. Last updated
 - Verified: full suite on PostgreSQL 16 through the real migration (45 passed) and on SQLite (41 passed, 4 Postgres-only skipped). Presiyan also ran the app in Docker and confirmed submissions and JSONB answers are stored in PostgreSQL.
 - Provisional hosting: company computer or Linux server + Docker Compose + persistent PostgreSQL + internal network + approved VPN for remote admin (to discuss with Martin). Nothing deployed.
 
+> PR #1 (`development` → `main`) was merged on 17 Nov 2026 as a baseline. Still no real data and no deployment.
+
 ## Pre-merge safeguards (ChatGPT review, 17 Nov late evening)
 - **Local Docker verification (Presiyan):** `docker-compose.test.yml` run → 43 passed / 2 failed (files missing in the test image), fixed in cea114c; the re-run gave **45 passed, exit 0**. The app also ran in Docker with submissions and JSONB answers stored in PostgreSQL.
 - **Form fails closed without JavaScript:** the form now has `method="post"` to `/js-required` (stores nothing, does not read the body, answers 400 in Bulgarian) and a `<noscript>` notice that hides the form; names and answers can never end up in a URL. The only submission path is still `POST /api/submissions` from `form.js`.
