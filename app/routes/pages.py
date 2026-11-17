@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
+
+from app import questionnaire
+from app.validation import date_window, fmt_date, today_local
+
+router = APIRouter()
+
+MONTHS_BG = [
+    "януари", "февруари", "март", "април", "май", "юни",
+    "юли", "август", "септември", "октомври", "ноември", "декември",
+]
+
+
+def bg_date(d) -> str:
+    return f"{d.day} {MONTHS_BG[d.month - 1]} {d.year} г."
+
+
+def backdate_hint(days: int | None) -> str:
+    if days is None or days <= 0:
+        return ""
+    return f"Може да изберете до {days} {'ден' if days == 1 else 'дни'} назад."
+
+
+@router.get("/", response_class=HTMLResponse)
+def form_page(request: Request):
+    s = request.app.state
+    with s.session_factory() as session:
+        definition = questionnaire.get_active(session, s.settings.active_questionnaire_version)
+    today = today_local(s.settings.timezone)  # Europe/Sofia, never the browser clock
+    earliest, _ = date_window(today, s.settings.max_backdate_days)
+    picker = {
+        "today": today.isoformat(),
+        "min": earliest.isoformat(),
+        "today_display": fmt_date(today),
+        "hint": backdate_hint(s.settings.max_backdate_days),
+    }
+    return s.templates.TemplateResponse(
+        request,
+        "form.html",
+        {"q": definition, "today_label": bg_date(today), "picker": picker},
+    )
+
+
+@router.post("/js-required", response_class=HTMLResponse, name="js_required")
+def js_required(request: Request):
+    """Fail-closed target of the form's plain (no-JavaScript) submit.
+
+    It deliberately does NOT read the request body and stores nothing; the only submission path is
+    POST /api/submissions via form.js. It exists so a failed/blocked script can never turn the form
+    into a GET that puts names and answers into the URL.
+    """
+    resp = request.app.state.templates.TemplateResponse(request, "js_required.html", {}, status_code=400)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp

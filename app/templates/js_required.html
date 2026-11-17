@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Нужен е JavaScript{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="card__body">
+    <div class="banner banner--error" role="alert">
+      <svg class="icon"><use href="#i-circle-alert"/></svg>
+      <span>Отчетът не е изпратен. Формулярът работи само с включен JavaScript. Върнете се към формуляра, обновете страницата и опитайте отново. Нищо от попълненото не е записано.</span>
+    </div>
+    <p><a class="btn btn--primary" href="/">Към формуляра</a></p>
+  </div>
+</section>
+{% endblock %}

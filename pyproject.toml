@@ -1,0 +1,15 @@
+[project]
+name = "mik-process-insights"
+version = "0.1.0"
+description = "MIK | Process Insights - internal daily work log for process discovery"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.in"] }
+
+[tool.setuptools]
+packages = ["app", "app.routes"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

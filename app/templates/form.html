@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}{{ q.title }} · MIK | Process Insights{% endblock %}
+{% macro err(id) %}<p class="field__error" id="err-{{ id }}" role="alert"></p>{% endmacro %}
+{% macro opt(item) %}{% if not item.required %}<span class="field__opt">(по желание)</span>{% endif %}{% endmacro %}
+
+{% block content %}
+<section id="form-view">
+  <div class="page-head rise" style="--i:0">
+    <h1>{{ q.title }}</h1>
+    <p class="page-head__lead">Опишете накратко работния си ден. Няма правилни и грешни отговори.</p>
+    <div class="chips">
+      <span class="chip"><svg class="icon"><use href="#i-clock"/></svg>{{ today_label }} · ≈ {{ q.estimated_minutes }} мин.</span>
+      {% if q.notice %}<span class="chip"><svg class="icon"><use href="#i-shield-check"/></svg>Не е оценка на представянето</span>{% endif %}
+    </div>
+  </div>
+
+  <noscript>
+    <div class="banner banner--error" role="alert">
+      <svg class="icon"><use href="#i-circle-alert"/></svg>
+      <span>За да изпратите отчета, е нужно да е включен JavaScript в браузъра. Формулярът не може да бъде изпратен без него.</span>
+    </div>
+    <style>#report{display:none}.rise{opacity:1!important;animation:none!important}</style>
+  </noscript>
+
+  {# method="post" is a fail-closed fallback only: if the script does not load, the browser posts to a page that stores nothing and reads nothing. Never GET, so no answers or names can end up in the URL. #}
+  <form id="report" class="card rise" style="--i:1" novalidate method="post" action="/js-required" data-version="{{ q.version }}">
+    <div class="card__body">
+      <div id="form-error" class="banner banner--error" role="alert" hidden>
+        <svg class="icon"><use href="#i-circle-alert"/></svg><span></span>
+      </div>
+
+      <section class="section">
+        <div class="section__head"><span class="section__num">1</span><h2 class="section__title">Кой сте Вие</h2></div>
+        <div class="grid-2">
+          <div class="field" data-field="respondent_name">
+            <label class="field__label" for="respondent_name">{{ q.respondent.name.label }}{% if not q.respondent.name.required %}<span class="field__opt">(по желание)</span>{% endif %}</label>
+            <input class="input" id="respondent_name" name="respondent_name" type="text" autocomplete="name"
+                   maxlength="{{ q.respondent.name.max_length }}" placeholder="{{ q.respondent.name.placeholder }}"
+                   {% if q.respondent.name.required %}aria-required="true"{% endif %} aria-describedby="err-respondent_name">
+            {{ err('respondent_name') }}
+          </div>
+          <div class="field" data-field="department">
+            <label class="field__label" for="department">{{ q.respondent.department.label }}</label>
+            <div class="select-wrap">
+              <select class="select" id="department" name="department" aria-required="true" aria-describedby="err-department">
+                <option value="">{{ q.respondent.department.placeholder }}</option>
+                {% for o in q.departments.options %}<option value="{{ o.code }}">{{ o.label }}</option>{% endfor %}
+              </select>
+              <svg class="icon"><use href="#i-chevron-down"/></svg>
+            </div>
+            {{ err('department') }}
+          </div>
+        </div>
+        <div class="field" data-field="work_date" style="margin-top: var(--s5)">
+          <label class="field__label" for="work_date_btn" id="work_date_label">Дата на отчета</label>
+          {% if picker.hint %}<p class="field__help">{{ picker.hint }}</p>{% endif %}
+          <div class="datepicker" data-today="{{ picker.today }}" data-min="{{ picker.min }}">
+            <input type="hidden" id="work_date" name="work_date" value="{{ picker.today }}">
+            <button type="button" class="input datepicker__trigger" id="work_date_btn" aria-haspopup="dialog" aria-expanded="false" aria-describedby="err-work_date">
+              <svg class="icon"><use href="#i-calendar"/></svg>
+              <span class="datepicker__value">{{ picker.today_display }}</span>
+              <span class="datepicker__fmt">дд.мм.гггг</span>
+            </button>
+            <div class="datepicker__pop" role="dialog" aria-label="Избор на дата" aria-modal="false">
+              <div class="datepicker__head">
+                <button type="button" class="datepicker__nav" data-nav="-1" aria-label="Предишен месец"><svg class="icon"><use href="#i-chevron-left"/></svg></button>
+                <div class="datepicker__title" aria-live="polite"></div>
+                <button type="button" class="datepicker__nav" data-nav="1" aria-label="Следващ месец"><svg class="icon"><use href="#i-chevron-right"/></svg></button>
+              </div>
+              <div class="datepicker__grid" role="grid"></div>
+              <div class="datepicker__foot"><button type="button" class="datepicker__today">Днес</button></div>
+            </div>
+          </div>
+          {{ err('work_date') }}
+        </div>
+      </section>
+
+      {% set ns = namespace(n=1) %}
+      {% for item in q.questions %}
+        {% if item.section %}
+          {% if not loop.first %}</section>{% endif %}
+          {% set ns.n = ns.n + 1 %}
+          <section class="section">
+            <div class="section__head"><span class="section__num">{{ ns.n }}</span><h2 class="section__title">{{ item.section }}</h2></div>
+        {% elif loop.first %}
+          <section class="section">
+        {% endif %}
+
+        <div class="field" data-field="{{ item.id }}" data-type="{{ item.type }}">
+          {% if item.type == 'multi_choice' %}
+          <fieldset style="border:0;margin:0;padding:0;min-width:0" aria-describedby="err-{{ item.id }}">
+            <legend class="field__label">{{ item.label }}{{ opt(item) }}</legend>
+            {% if item.help %}<p class="field__help">{{ item.help }}</p>{% endif %}
+            <div class="choices">
+              {% for o in item.options %}
+              <label class="choice">
+                <input type="checkbox" name="{{ item.id }}" value="{{ o.code }}"{% if o.exclusive %} data-exclusive{% endif %}>
+                <span class="choice__box" aria-hidden="true"><svg class="icon"><use href="#i-check"/></svg></span>
+                <span>{{ o.label }}</span>
+              </label>
+              {% if o.allows_text %}
+              <div class="choice-extra" data-text-for="{{ o.code }}" hidden>
+                <input class="input" type="text" maxlength="300" placeholder="{{ o.text_placeholder or 'Уточнете...' }}" aria-label="{{ o.label }}" aria-describedby="err-{{ item.id }}-{{ o.code }}">
+                {{ err(item.id ~ '-' ~ o.code) }}
+              </div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </fieldset>
+          {% else %}
+          <label class="field__label" for="{{ item.id }}">{{ item.label }}{{ opt(item) }}</label>
+          {% if item.help %}<p class="field__help">{{ item.help }}</p>{% endif %}
+          {% if item.type == 'textarea' %}
+          <textarea class="textarea" id="{{ item.id }}" name="{{ item.id }}" rows="3" maxlength="{{ item.max_length or 2000 }}" placeholder="{{ item.placeholder or '' }}" aria-describedby="err-{{ item.id }}"></textarea>
+          {% else %}
+          <input class="input" id="{{ item.id }}" name="{{ item.id }}" type="text" maxlength="{{ item.max_length or 300 }}" placeholder="{{ item.placeholder or '' }}" aria-describedby="err-{{ item.id }}">
+          {% endif %}
+          {% endif %}
+          {{ err(item.id) }}
+        </div>
+        {% if loop.last %}</section>{% endif %}
+      {% endfor %}
+
+      <div class="actions">
+        <button id="submit" class="btn" type="submit">
+          <svg class="icon btn__icon"><use href="#i-send"/></svg>
+          <svg class="icon spinner"><use href="#i-loader-circle"/></svg>
+          <span id="submit-label">Изпрати дневен отчет</span>
+        </button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<section id="success-view" class="card" hidden>
+  <div class="success">
+    <div class="success__badge" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <h2>Благодарим Ви!</h2>
+    <p id="success-text">Дневният отчет е изпратен успешно.</p>
+    <button id="another" class="btn btn--secondary" type="button">Попълни нов отчет</button>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='js/datepicker.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/form.js') }}" defer></script>{% endblock %}
