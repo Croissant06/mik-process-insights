@@ -80,6 +80,17 @@ Test results (confirmed):
 4. Remediation batches B–D before any real employee data.
 5. Bulgarian business documents need native-speaker and legal review.
 
+
+### Day 2 — Wednesday, 18 November (proposed work plan)
+**Goal:** turn the working prototype into an agreed pilot specification and start the minimum secure admin workflow. No collection of real employee data until all pre-pilot gates are satisfied.
+
+1. **Before the meeting (15–20 min, if possible):** pull development, rerun the isolated Docker PostgreSQL suite (expect 73; log actual result), check runtime health/date picker and submit one synthetic report. Prepare a local demo and the Bulgarian questionnaire; no public link.
+2. **Meeting with colleague (30–60 min, flexible):** explain the form's business purpose and demo with synthetic data. Clarify MES/AI module scope and existing software/docs; actual departments, proposed participants, devices, and one-report-per-day/backdating/identity policy; propose ownership split (project lead: platform and analysis; colleague: physical order tracking and interview coordination; both: prioritization, subject to agreement). Agree which real order and roles can be observed, and how observations will be captured. Check company-managed host, approved VPN/IT contact, admin access, backups and privacy approval route. Confirm meeting logistics for 25 Nov and remote work/access for 23–24 Nov if needed.
+3. **After meeting:** record only non-sensitive decisions/requirements in Git; keep actual participant names, process records and confidential documents in approved company storage. Prepare and send the questionnaire plus proposed participant list as separate company documents to management for approval before launch; seek confirmation of purpose, access, retention, identity, notice and legal basis through the appropriate company reviewer. No approval assumed.
+4. **Technical block (after requirements, synthetic only):** build questionnaire v2 only once changes are agreed; keep v1 immutable. Prioritize H2 request hardening, production-only PostgreSQL/approved questionnaire guards, authentication/session/CSRF design and a protected read-only admin dashboard (count, department/date filters, individual report detail if authorized). Then tackle idempotency, safe logging, remaining security/ops requirements, and export if time permits. Avoid scope creep: no charts/AI integration/MES integration before the core workflow and business scope are clear. Set up a reviewable PR and document any unfinished tasks. Do not deploy or merge new code without authorization.
+5. **End-of-day:** log every test and review, list actual decisions, review new code and track outstanding pre-pilot items. Target for 19 Nov: secure, approved pilot-ready baseline with export and tested backup/restore, conditional on management/IT decisions and successful verification. If any gate remains open, keep it a synthetic-data demo and revise the launch date.
+6. **20–24 Nov, conditional on approval and readiness:** collect daily reports, short interviews and order-tracking observations; check coverage and data quality daily. On 25 Nov present preliminary findings (time-consuming tasks, duplicate entry, waiting/approvals), distinguish organizational improvements from software automation, map to confirmed MES/AI scope, and send management the materials and written summary. Clearly label sample/observation limitations.
+
 ## 8. Review requests
 | # | To | Request | Status |
 |---|---|---|---|
@@ -89,6 +100,8 @@ Test results (confirmed):
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-17 · ChatGPT → Claude · Added the proposed Day 2 plan in section 7 at the user's request. Read it before starting new work. The order is business decisions first, then prioritized security/admin implementation with synthetic data only; local hardened suite still pending. No scope/hosting/management decision is assumed.
 
 - 2026-11-17 · ChatGPT → Claude · Reviewed hardened tests/safety.py, tests/test_test_safety.py, and the preflight/reset call sites. Confirmed test URL query parameters are rejected, local aliases/default port are normalized for comparison, malformed application URLs are refused (for the tested parse-error case), and eight additional regression cases are present. Approved for the isolated disposable Compose stack; no further changes required tonight. Residual limitation for arbitrary manual URLs: libpq environment overrides (e.g. PGHOSTADDR), application URL query overrides, DNS/tunnels and alternate app configuration can defeat a textual target comparison, so do not rely on this guard outside a dedicated disposable database with isolated credentials. Claude reports 73 PostgreSQL passes and 69 SQLite passes/4 skipped; no independent ChatGPT execution and final local hardened run pending. Keep production hardening separate.
 
