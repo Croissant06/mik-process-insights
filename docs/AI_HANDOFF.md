@@ -7,6 +7,7 @@
 - **ChatGPT**: independent technical review, business analysis, strategic planning.
 - **Presiyan** decides. Neither assistant merges PR #1 or changes scope without his explicit go-ahead.
 - **Read this file at the start of every session. Update it after every significant change** (merged/pushed work, test results, decisions, new issues, review answers). Keep it short and factual.
+- **Test logging is mandatory for both assistants.** After every test run that an assistant performs or the user shares, promptly record the result in section 3 and add a short communication-log entry when significant. Include date/time (when known), tested commit/branch (when known), command or check, environment, passed/failed/skipped counts, warnings, exit code, duration, failure cause and next action if applicable. Distinguish user-provided logs, assistant-reported runs, independently executed runs, and static inspection; never invent missing results. Log failed runs as well as successful reruns. Sanitize all entries: no credentials, personal data, or raw sensitive logs. If GitHub permission is unavailable, tell the user the log is not yet saved.
 - Separate **confirmed facts** from **assumptions**; mark assumptions as such. Never invent company data.
 - **Never put in this file or the repo:** real employee data, submissions, database dumps, exports, credentials, or `.env` contents. Synthetic data only. No public deployment.
 - Talk to Presiyan in English; employee-facing UI and company documents in Bulgarian.
@@ -23,13 +24,14 @@
 - Stack scaffold, versioned YAML questionnaire with immutable DB snapshots, backend validation, Sofia/UTC dates, JSONB answers.
 - Responsive Bulgarian form, design system (tokens/components, Inter, Lucide, light/dark), Bulgarian calendar picker (unlimited past dates by default, no future).
 - Five Bulgarian business drafts in `docs/business/`; future export requirements recorded.
-- Pre-merge safeguards from ChatGPT's review (form fails closed without JS, destructive-test guard, build-context tightening, business-draft improvements) — done in 3668807, awaiting Presiyan's go-ahead to merge.
+- Pre-merge safeguards from ChatGPT's review (form fails closed without JS, destructive-test guard, build-context tightening, business-draft improvements) — done in 3668807; merged into main with PR #1.
 - Audit batch A: H1, H3, H4, H5, M6, T1/T2 (see `docs/REMEDIATION_CHECKLIST.md`).
 - `main` created as an empty root commit so PR #1 can show the whole project.
 
 ## 3. Latest commits and test results
 | Commit | What |
 |---|---|
+| 52cb5ef | PR #1 merged into main; development baseline only |
 | 3668807 | Pre-merge safeguards (no-JS fail-closed form, destructive-test guard), business-draft improvements, docs |
 | 0851212 | ChatGPT: independent review recorded in this file |
 | 9f65fd1 | This file created |
@@ -39,7 +41,7 @@
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
-- After 3668807, cloud environment: PostgreSQL 16 **65 passed**; SQLite 61 passed, 4 skipped; also 65 passed in a simulation of the Docker test-image file layout. Runtime on PostgreSQL: `/healthz` 200, calendar floor present, form works with JS, hidden with notice without JS. **Presiyan's Docker re-run of this commit is still to be confirmed.**
+- After 3668807, cloud environment: PostgreSQL 16 **65 passed**; SQLite 61 passed, 4 skipped; also 65 passed in a simulation of the Docker test-image file layout. Runtime on PostgreSQL: `/healthz` 200, calendar floor present, form works with JS, hidden with notice without JS. **Final local Docker rerun confirmed from user-provided console output:** 2026-11-17 23:50 Sofia, `docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests` (test stack, PostgreSQL 16.16); 65 passed, 0 failed, 1 known Starlette deprecation warning, 6.09 s, exit code 0. Image build successful; expected NOT NULL rejection in regression test; database shutdown normal. Exact local HEAD was not printed in the log. No independent ChatGPT execution.
 - Cloud environment, PostgreSQL 16 via real Alembic migration: **45 passed**. SQLite: 41 passed, 4 Postgres-only skipped.
 - Presiyan's Docker run before cea114c: 43 passed, 2 failed (files missing in the test image). Fixed in cea114c; verified here by simulating the image layout (45 passed). **Presiyan confirmed the Docker re-run: 45 passed, 1 deprecation warning, exit code 0 (5.33 s).**
 - Presiyan ran the app in Docker and confirmed submissions and JSONB answers are stored in PostgreSQL.
@@ -70,8 +72,8 @@ Test results (confirmed):
 - Privacy notice and legal basis (DPO/lawyer); MES/AI scope.
 
 ## 7. Upcoming tasks and priorities
-0. ~~Merge PR #1~~ done (merged 2026-11-17). Next: Presiyan's local Docker run of the latest `development` (expect 65 passed) is optional confirmation.
-1. Presiyan: earlier Docker run complete (45 passed); rerun final 65-test suite in disposable Compose and check runtime health/calendar before merge.
+0. ~~Merge PR #1~~ done (merged 2026-11-17, 52cb5ef). Final local Docker test run: 65/65 passed.
+1. Final Docker suite passed. Separate final local runtime health/calendar checks are not yet documented; verify if not already done.
 2. Collect Martin's answers (18 Nov); turn management feedback into `daily_report.v2.yaml`.
 3. Wed/Thu: admin dashboard + authentication + export, with Origin/CSRF protection from the start (H2).
 4. Remediation batches B–D before any real employee data.
@@ -80,12 +82,14 @@ Test results (confirmed):
 ## 8. Review requests
 | # | To | Request | Status |
 |---|---|---|---|
-| 1 | ChatGPT | Independent review of PR #1 (code, security, privacy approach); compare against `docs/audit/TECHNICAL_AUDIT_2026-11-17.md` | Baseline and follow-up static review complete; pre-pilot findings remain open; final local Docker test pending |
+| 1 | ChatGPT | Independent review of PR #1 (code, security, privacy approach); compare against `docs/audit/TECHNICAL_AUDIT_2026-11-17.md` | Baseline and follow-up static review complete; pre-pilot findings remain open; final local Docker test passed (65/65) |
 | 2 | ChatGPT | Review `docs/business/*_BG.md` for business sense and wording; flag anything stated as fact that is only an assumption | Draft review and follow-up complete; v2 wording and legal/management approval pending |
 | 3 | ChatGPT | Review `docs/REMEDIATION_CHECKLIST.md` priorities and the provisional hosting approach | Reviewed; provisional pending company IT and management |
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-17 · ChatGPT → Claude · User supplied final local Docker test output: 65 passed, 0 failed, 1 known warning, 6.09 s, exit 0. User authorized the baseline merge; GitHub confirmed PR #1 merged as 52cb5ef. Both assistants must now log every performed or user-reported test run (including failures and reruns) in section 3. Separate final runtime smoke check remains unconfirmed. No real data or production deployment.
 
 - 2026-11-17 · ChatGPT → Claude · Follow-up static review of fea61f5 (including 3668807): verified the explicit POST fallback and non-persisting /js-required handler, the no-JS notice, the dedicated destructive-test opt-in/name/host guard, the associated regression tests and test image COPY of docker-compose.test.yml. Reviewed refinements in the business drafts and remediation checklist. All three requested reviews are complete for the development baseline. No further baseline merge blocker identified in this targeted inspection; final condition is Presiyan's successful local Compose test rerun (expected 65) and runtime smoke check. ChatGPT did not execute tests. Keep destructive tests restricted to the isolated Compose stack in practice; future defense-in-depth: reject connection query parameters that can override approved DB host/name and compare effective DB targets, not just URL strings. No real data, production deployment or implied legal approval. Merge only on Presiyan's explicit approval.
 
