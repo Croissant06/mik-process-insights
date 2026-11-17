@@ -1,0 +1,76 @@
+# DRAFT questionnaire - NOT yet approved by management.
+# Edit by copying to daily_report.v2.yaml (bump `version`); never edit a version that
+# has already been loaded into a database - the app refuses to start if it differs.
+version: 1
+code: daily_report
+status: draft
+title: Дневник на работните дейности
+estimated_minutes: 5
+notice: >-
+  Целта е да разберем как протича работата и къде можем да я улесним.
+  Това не е оценка на представянето на служителите.
+
+respondent:
+  name:
+    label: Име и фамилия
+    placeholder: Вашето име
+    required: true        # set to false to make the name optional
+    max_length: 120
+  department:
+    label: Отдел
+    placeholder: Изберете
+    required: true
+
+# PLACEHOLDER departments - real list to be confirmed with management.
+departments:
+  placeholder: true
+  options:
+    - {code: dept_1, label: "Отдел 1 (примерен)"}
+    - {code: dept_2, label: "Отдел 2 (примерен)"}
+    - {code: dept_3, label: "Отдел 3 (примерен)"}
+    - {code: dept_4, label: "Отдел 4 (примерен)"}
+    - {code: other, label: "Друг отдел"}
+
+questions:
+  - id: tasks
+    type: textarea
+    label: Основни задачи през деня
+    placeholder: Опишете накратко...
+    required: true
+    max_length: 2000
+
+  - id: recurring
+    type: textarea
+    label: Повтарящи се и отнемащи време дейности
+    help: Посочете и приблизително колко време отнемат.
+    placeholder: Дейности, приблизително време...
+    required: true
+    max_length: 2000
+
+  - id: obstacles
+    type: multi_choice
+    label: Какви затруднения срещнахте?
+    help: Може да изберете повече от един отговор.
+    required: true
+    options:
+      - {code: duplicate_info, label: Дублиране на информация}
+      - {code: waiting, label: Изчакване на информация или одобрение}
+      - {code: manual_repeat, label: Повтарящи се ръчни операции}
+      - {code: tech_problems, label: Проблеми със софтуер или оборудване}
+      - {code: other, label: Други, allows_text: true, text_placeholder: Уточнете накратко...}
+      - {code: none, label: Не съм срещнал/а затруднения, exclusive: true}
+
+  - id: obstacles_detail
+    type: textarea
+    label: Пояснение към затрудненията
+    help: По желание - пример или подробности.
+    placeholder: Какво точно се случи?
+    required: false
+    max_length: 2000
+
+  - id: suggestions
+    type: textarea
+    label: Допълнителна информация и предложения
+    placeholder: Как бихме могли да улесним Вашата работа?
+    required: false
+    max_length: 2000
