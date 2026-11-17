@@ -13,3 +13,7 @@
 | 2026-11-17 | No IP/user-agent/device data stored; no duplicate-per-day restriction | Implemented | Data minimisation; revisit after talking to Martin. |
 | 2026-11-17 | Departments are placeholders ("Отдел 1 (примерен)") | Open | Real list to be confirmed with Martin on 18 Nov. |
 | — | Hosting, authentication, admin access, retention, who sees named data | Open | Not decided; no public deployment. |
+| 2026-11-17 | Design system: tokens in `app/static/css/tokens.css`, reusable components in `components.css`; Inter (Cyrillic + Latin, self-hosted, OFL) and Lucide icons as an inline sprite; palette navy #14253D / accent #2563EB / bg #F5F7FA / success #16A34A | Implemented | Presiyan's UI direction. Admin pages should reuse these files. No CDN or external requests at runtime. |
+| 2026-11-17 | Theme: follows system by default, toggle persists in localStorage, applied before first paint | Implemented | Per UI direction. |
+| 2026-11-17 | Questionnaire questions may carry an optional `section` heading; the form groups them into numbered steps | Implemented | Helps low-literacy users see the form is short and structured. v1 was edited for this and for one help text before any shared deployment; from now on published versions are immutable. |
+| 2026-11-17 | Motion kept minimal: press feedback, checkbox/tick transitions, one short staggered page entrance, drawn success check; all disabled under `prefers-reduced-motion` | Implemented | Form is used once a day, so brief delight is fine; nothing blocks interaction. |

@@ -7,9 +7,11 @@ Companion to the planning notes kept in the project knowledge base. Last updated
 - Backend validation, versioning, Sofia/UTC handling and persistence covered by the pytest suite (SQLite).
 - Alembic migration applied on SQLite; the app ran end to end with synthetic submissions.
 
+- UI design pass (tokens, components, Inter, Lucide, persistent light/dark theme) checked with Playwright at 375, 768 and 1440 px in light and dark: no horizontal overflow, no unexpected console errors, theme persists after reload, Inter loads. Screenshots: `ui-review/` in the project files.
+
 ## Not verified
 - **PostgreSQL / Docker Compose were not run** (no Docker daemon in the build environment). The Postgres migration and `docker compose up` still need a first run on Presiyan's machine.
-- Tested only with synthetic data, no real users, no accessibility audit beyond basic keyboard/focus/contrast choices.
+- Tested only with synthetic data, no real users. No formal accessibility audit (WCAG) and no test on real phones or Safari/Firefox; only Chromium was used. Context7 was not available, so no library docs were consulted.
 
 ## Not built yet (planned Wed/Thu)
 Admin view (date/department filter, search), authentication, CSV/Excel export, basic aggregate insights, department configuration screen.

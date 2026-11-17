@@ -33,6 +33,7 @@ departments:
 
 questions:
   - id: tasks
+    section: Вашият ден
     type: textarea
     label: Основни задачи през деня
     placeholder: Опишете накратко...
@@ -48,6 +49,7 @@ questions:
     max_length: 2000
 
   - id: obstacles
+    section: Затруднения и предложения
     type: multi_choice
     label: Какви затруднения срещнахте?
     help: Може да изберете повече от един отговор.
@@ -63,7 +65,7 @@ questions:
   - id: obstacles_detail
     type: textarea
     label: Пояснение към затрудненията
-    help: По желание - пример или подробности.
+    help: Например какво се е случило и колко време е отнело.
     placeholder: Какво точно се случи?
     required: false
     max_length: 2000
