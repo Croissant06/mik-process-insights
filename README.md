@@ -2,7 +2,7 @@
 
 Вътрешен уеб формуляр „Дневник на работните дейности“ за събиране на доказателства за реалните работни процеси в МИК-БГ (инструмент за откриване на процеси, не за оценка на служители).
 
-Internal discovery tool: employees spend ~5 minutes a day describing tasks, repeated work and obstacles. **Development uses synthetic data only. Do not deploy publicly.** See `docs/PROJECT_STATUS.md` and `docs/DECISIONS.md`.
+Internal discovery tool: employees spend ~5 minutes a day describing tasks, repeated work and obstacles. **Development uses synthetic data only. Do not deploy publicly.** See `docs/PROJECT_STATUS.md` and `docs/DECISIONS.md`. **AI assistants (Claude, ChatGPT): read `docs/AI_HANDOFF.md` at the start of every session and update it after significant changes.**
 
 ## Run locally (Docker)
 
