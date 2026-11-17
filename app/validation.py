@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -42,11 +43,21 @@ def fmt_date(d: date) -> str:
 
 
 def _clean_text(value) -> str | None:
+    """Return cleaned text, "" for missing, or None when the value is not acceptable text.
+
+    Rejects text that cannot be encoded as UTF-8 (e.g. a lone surrogate such as "\\ud800"), which would
+    otherwise crash the database insert. Normalises to NFC so the same Bulgarian word is always stored the
+    same way (this changes only the byte representation of combining sequences, not what people read).
+    """
     if value is None:
         return ""
     if not isinstance(value, str):
         return None
-    return _CONTROL.sub("", value).strip()
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    return unicodedata.normalize("NFC", _CONTROL.sub("", value)).strip()
 
 
 def _text(value, *, required: bool, max_length: int, errors: dict, key: str) -> str:
@@ -109,7 +120,7 @@ def validate_submission(
     name = _text(
         payload.get("respondent_name"),
         required=bool(name_cfg.get("required", True)),
-        max_length=int(name_cfg.get("max_length", 120)),
+        max_length=min(int(name_cfg.get("max_length", 120)), 120),  # never exceed the DB column (varchar 120)
         errors=errors,
         key="respondent_name",
     )

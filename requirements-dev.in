@@ -1,0 +1,5 @@
+# Test dependencies. Constrained by the runtime lock so tests run against the same versions.
+-c requirements.txt
+-r requirements.in
+pytest>=8,<10
+httpx>=0.27,<1

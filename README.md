@@ -7,27 +7,55 @@ Internal discovery tool: employees spend ~5 minutes a day describing tasks, repe
 ## Run locally (Docker)
 
 ```bash
-cp .env.example .env            # edit the password if you like
+cp .env.example .env            # set POSTGRES_PASSWORD once (see "Database credentials")
 docker compose up --build       # web on http://127.0.0.1:8000 (localhost only)
 docker compose exec web python scripts/seed_synthetic.py --count 30   # optional synthetic data
 ```
 
-Migrations run automatically on start (`alembic upgrade head`). Stop with `docker compose down` (add `-v` to wipe the database).
+Migrations run automatically on start (`alembic upgrade head`). `GET /healthz` checks the database and returns 503 if it is unreachable; Compose uses it as the web healthcheck.
+Stop with `docker compose down`. **Never add `-v` unless you really want to delete the database** (it removes the `pgdata` volume).
+
+An older `.env` that still contains `DATABASE_URL=...` keeps working: `DATABASE_URL` wins when set. No volume or schema change is needed.
+
+## Database credentials
+
+- Write the password **once**, in `POSTGRES_PASSWORD`. The app builds its connection string from `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (host `db`), and escapes special characters for you.
+- PostgreSQL only applies the password when the data volume is first created. Changing `.env` later does **not** change the password inside an existing database. To rotate it: `docker compose exec db psql -U <user> -c "ALTER USER <user> PASSWORD 'new'"`, then update `.env`, then `docker compose up -d`.
+- `DATABASE_URL` (optional) overrides the parts above. Without any database setting the app refuses to start; the SQLite fallback exists only with `APP_ENV=dev` (or `development`/`test`).
+- `.env` is gitignored. Never commit it.
 
 ## Run tests
 
-Tests use SQLite, no Docker needed:
-
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-python -m pytest
+pip install -r requirements-dev.txt
+python -m pytest                 # fast, SQLite
 ```
 
-## Run without Docker (SQLite)
+The same suite also runs on PostgreSQL, with the schema built by the real Alembic migration, plus extra Postgres-only checks (`tests/test_postgres.py`). The target database is wiped for every test, so its name must contain `test`:
 
 ```bash
-export DATABASE_URL=sqlite:///./local-dev.db
+# with Docker (throw-away database in memory, nothing persisted):
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+docker compose -f docker-compose.test.yml down
+
+# or against any PostgreSQL you have:
+TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/mik_test python -m pytest
+```
+
+## Dependencies (locked)
+
+Direct dependencies are in `requirements.in` / `requirements-dev.in`; the exact, hash-pinned versions are in `requirements.txt` / `requirements-dev.txt`. Docker installs only from the lock with `--require-hashes`. To update:
+
+```bash
+uv pip compile requirements.in -o requirements.txt --generate-hashes --universal --python-version 3.12
+uv pip compile requirements-dev.in -o requirements-dev.txt --generate-hashes --universal --python-version 3.12
+```
+
+## Run without Docker (SQLite, development only)
+
+```bash
+export APP_ENV=dev DATABASE_URL=sqlite:///./local-dev.db
 alembic upgrade head
 uvicorn app.main:create_app --factory --reload
 ```

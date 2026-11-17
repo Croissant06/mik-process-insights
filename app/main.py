@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 
 from app import questionnaire
 from app.config import Settings
@@ -35,6 +38,7 @@ def create_app(settings: Settings | None = None, *, create_tables: bool = False)
 
     app = FastAPI(title="MIK | Process Insights", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
+    app.state.engine = engine
     app.state.session_factory = session_factory
     app.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
     app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
@@ -42,7 +46,14 @@ def create_app(settings: Settings | None = None, *, create_tables: bool = False)
     app.include_router(api.router)
 
     @app.get("/healthz", include_in_schema=False)
-    def healthz():
+    def healthz(request: Request):
+        """Liveness + database check (used by Docker healthchecks). Never returns details."""
+        try:
+            with request.app.state.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception as exc:  # noqa: BLE001 - report only the type, never connection details
+            logging.getLogger("app").warning("health check failed: %s", type(exc).__name__)
+            return JSONResponse({"status": "error"}, status_code=503)
         return {"status": "ok"}
 
     return app

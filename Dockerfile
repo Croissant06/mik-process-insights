@@ -1,13 +1,25 @@
-FROM python:3.12-slim
+# Reproducible build: dependencies come from the hash-pinned lock file (requirements.txt).
+FROM python:3.12-slim AS base
 WORKDIR /srv
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/srv
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir "fastapi>=0.115" "uvicorn[standard]>=0.30" "sqlalchemy>=2.0" \
-    "alembic>=1.13" "psycopg[binary]>=3.2" "jinja2>=3.1" "pyyaml>=6.0" "tzdata>=2024.1"
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/srv \
+    PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+COPY requirements.txt ./
+RUN pip install --require-hashes -r requirements.txt
 COPY alembic.ini ./
 COPY app ./app
 COPY migrations ./migrations
 COPY questionnaire ./questionnaire
 COPY scripts ./scripts
+
+# Test image: used only by docker-compose.test.yml
+FROM base AS test
+COPY requirements-dev.txt ./
+RUN pip install --require-hashes -r requirements-dev.txt
+COPY tests ./tests
+COPY docs ./docs
+CMD ["python", "-m", "pytest", "-q"]
+
+# Runtime image (last stage = default target)
+FROM base AS runtime
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"]

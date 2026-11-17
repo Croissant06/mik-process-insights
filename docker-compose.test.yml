@@ -1,0 +1,28 @@
+# Runs the whole test suite against a THROW-AWAY PostgreSQL (no volume, data disappears afterwards).
+# Separate project name: it can never touch the real development database or its volume.
+#   docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+#   docker compose -f docker-compose.test.yml down
+name: mik-process-insights-test
+services:
+  db-test:
+    image: postgres:16-alpine
+    environment:   # throw-away test credentials, not secrets
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: mik_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d mik_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  tests:
+    build:
+      context: .
+      target: test
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://test:test@db-test:5432/mik_test
+    depends_on:
+      db-test:
+        condition: service_healthy

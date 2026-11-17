@@ -19,6 +19,11 @@ from app.models import QuestionnaireVersion
 QUESTION_TYPES = {"text", "textarea", "multi_choice"}
 CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
+# Limits that mirror the database columns (see app/models.py). Configuration may be stricter, never looser,
+# otherwise PostgreSQL would reject rows that validation accepted (HTTP 500).
+NAME_COLUMN_MAX = 120
+TEXT_ANSWER_MAX = 20000
+
 
 class QuestionnaireError(Exception):
     pass
@@ -44,6 +49,14 @@ def check_definition(d: dict, source: str = "questionnaire") -> None:
     for key in ("name", "department"):
         if key not in resp or "label" not in resp[key]:
             fail(f"respondent.{key}.label missing")
+    name_max = resp["name"].get("max_length", NAME_COLUMN_MAX)
+    if type(name_max) is not int or not 1 <= name_max <= NAME_COLUMN_MAX:
+        fail(f"respondent.name.max_length must be an integer between 1 and {NAME_COLUMN_MAX} (database column limit)")
+    if resp["department"].get("required", True) is not True:
+        fail(
+            "respondent.department.required must be true: the department column is NOT NULL. "
+            "To allow optional departments, add a database migration first."
+        )
     dept_codes = [o.get("code") for o in d["departments"].get("options", [])]
     if not dept_codes:
         fail("departments.options is empty")
@@ -63,8 +76,8 @@ def check_definition(d: dict, source: str = "questionnaire") -> None:
             codes = [o.get("code") for o in q.get("options", [])]
             if not codes or len(set(codes)) != len(codes) or not all(CODE_RE.match(str(c)) for c in codes):
                 fail(f"question {qid}: options need unique snake_case codes")
-        elif "max_length" in q and not isinstance(q["max_length"], int):
-            fail(f"question {qid}: max_length must be an integer")
+        elif "max_length" in q and (type(q["max_length"]) is not int or not 1 <= q["max_length"] <= TEXT_ANSWER_MAX):
+            fail(f"question {qid}: max_length must be an integer between 1 and {TEXT_ANSWER_MAX}")
 
 
 def load_file(path: Path) -> dict:

@@ -14,8 +14,12 @@ services:
       timeout: 3s
       retries: 20
   web:
-    build: .
+    build:
+      context: .
+      target: runtime
     env_file: .env
+    environment:
+      POSTGRES_HOST: db
     depends_on:
       db:
         condition: service_healthy
@@ -24,5 +28,11 @@ services:
     volumes:
       - ./app:/srv/app
       - ./questionnaire:/srv/questionnaire
+    healthcheck:   # also checks the database connection
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 volumes:
   pgdata:
