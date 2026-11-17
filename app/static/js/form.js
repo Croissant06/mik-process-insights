@@ -14,7 +14,7 @@
     const [qid, code] = key.split(".");
     if (code) return form.querySelector(`[data-text-for="${code}"] input`);
     const f = form.querySelector(`[data-field="${qid}"]`);
-    return f && (f.querySelector("input:not([type=hidden]), select, textarea"));
+    return f && f.querySelector("input:not([type=hidden]), select, textarea, button.datepicker__trigger");
   };
 
   function setInvalid(key, msg) {
@@ -130,8 +130,7 @@
         body: JSON.stringify(payload),
       });
       if (res.status === 201) {
-        const sel = form.elements.work_date;
-        const label = sel.tagName === "SELECT" ? sel.options[sel.selectedIndex].text.toLowerCase() : "";
+        const label = document.querySelector(".datepicker__value").textContent;
         document.getElementById("success-text").textContent =
           "Дневният отчет" + (label ? " за " + label : "") + " е изпратен успешно.";
         formView.hidden = true;

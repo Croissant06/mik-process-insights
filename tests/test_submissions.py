@@ -65,14 +65,69 @@ def test_too_long_text_rejected(client, valid_payload):
     assert "tasks" in post(client, p).json()["errors"]
 
 
-def test_work_date_window_uses_sofia_calendar(client, valid_payload):
-    p = valid_payload(client)
-    p["work_date"] = (datetime.fromisoformat(p["work_date"]) + timedelta(days=1)).date().isoformat()
-    assert "work_date" in post(client, p).json()["errors"]  # future
-    p["work_date"] = (datetime.fromisoformat(p["work_date"]) - timedelta(days=5)).date().isoformat()
-    assert "work_date" in post(client, p).json()["errors"]  # too old
-    p["work_date"] = "not-a-date"
-    assert "work_date" in post(client, p).json()["errors"]
+def freeze_today(monkeypatch, d):
+    monkeypatch.setattr("app.routes.api.today_local", lambda tz: d)
+    monkeypatch.setattr("app.routes.pages.today_local", lambda tz: d)
+
+
+def test_work_date_window_is_configurable(make_client, valid_payload, monkeypatch):
+    from datetime import date
+
+    freeze_today(monkeypatch, date(2026, 11, 17))
+    c = make_client(max_backdate_days=7)
+    p = valid_payload(c)
+    for ok in ("2026-11-17", "2026-11-10", "2026-11-16"):  # today, the earliest allowed day, yesterday
+        p["work_date"] = ok
+        assert post(c, p).status_code == 201, ok
+    for bad in ("2026-11-09", "2026-11-18", "2027-01-01", "2026-02-30", "17.11.2026", ""):
+        p["work_date"] = bad
+        r = post(c, p)
+        assert r.status_code == 422 and "work_date" in r.json()["errors"], bad
+    p["work_date"] = "2026-11-09"
+    assert "10.11.2026" in post(c, p).json()["errors"]["work_date"]  # message names the window, DD.MM.YYYY
+    assert "17.11.2026" in post(c, p).json()["errors"]["work_date"]
+
+
+def test_backdating_zero_means_today_only(make_client, valid_payload, monkeypatch):
+    from datetime import date
+
+    freeze_today(monkeypatch, date(2026, 11, 17))
+    c = make_client(max_backdate_days=0)
+    p = valid_payload(c)
+    p["work_date"] = "2026-11-16"
+    assert "work_date" in post(c, p).json()["errors"]
+    p["work_date"] = "2026-11-17"
+    assert post(c, p).status_code == 201
+
+
+def test_default_backdate_window_is_seven_days():
+    from app.config import Settings
+
+    assert Settings(database_url="sqlite://").max_backdate_days == 7
+
+
+def test_date_picker_uses_server_side_sofia_date(make_client, monkeypatch):
+    from datetime import date
+
+    freeze_today(monkeypatch, date(2026, 11, 18))
+    html = make_client(max_backdate_days=7).get("/").text
+    assert "Дата на отчета" in html
+    assert 'data-today="2026-11-18"' in html and 'data-min="2026-11-11"' in html
+    assert 'value="2026-11-18"' in html and ">18.11.2026<" in html
+    assert 'name="work_date"' in html and 'id="work_date" name="work_date"' in html
+    assert "до 7 дни назад" in html
+
+
+def test_picker_defaults_to_sofia_not_utc_day(make_client, monkeypatch):
+    # 22:30 UTC on 17 Nov is already 18 Nov in Sofia (UTC+2)
+    from datetime import datetime, timezone
+
+    import app.validation as v
+
+    real = v.today_local
+    late = datetime(2026, 11, 17, 22, 30, tzinfo=timezone.utc)
+    monkeypatch.setattr("app.routes.pages.today_local", lambda tz: real(tz, late))
+    assert 'data-today="2026-11-18"' in make_client().get("/").text
 
 
 def test_sofia_vs_utc_day_boundary():

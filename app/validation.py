@@ -15,7 +15,7 @@ MSG = {
     "exclusive": "Този отговор не може да се комбинира с другите.",
     "need_text": "Моля, уточнете.",
     "bad_date": "Невалидна дата.",
-    "date_range": "Можете да избирате само днешна или последните разрешени дати.",
+    "date_range": "Изберете дата между {min} и {max}.",
     "bad_type": "Невалиден формат.",
 }
 
@@ -25,8 +25,14 @@ def today_local(tz_name: str, now: datetime | None = None) -> date:
     return (now.astimezone(tz) if now else datetime.now(tz)).date()
 
 
-def allowed_dates(today: date, max_backdate_days: int) -> list[date]:
-    return [today - timedelta(days=i) for i in range(max_backdate_days + 1)]
+def date_window(today: date, max_backdate_days: int) -> tuple[date, date]:
+    """Inclusive (earliest, latest) work date an employee may pick. Never in the future."""
+    return today - timedelta(days=max(0, max_backdate_days)), today
+
+
+def fmt_date(d: date) -> str:
+    """DD.MM.YYYY, the format shown to employees."""
+    return d.strftime("%d.%m.%Y")
 
 
 def _clean_text(value) -> str | None:
@@ -121,8 +127,10 @@ def validate_submission(
         work_date = None
     if work_date is None:
         errors["work_date"] = MSG["bad_date"]
-    elif work_date not in allowed_dates(today, max_backdate_days):
-        errors["work_date"] = MSG["date_range"]
+    else:
+        earliest, latest = date_window(today, max_backdate_days)
+        if not earliest <= work_date <= latest:
+            errors["work_date"] = MSG["date_range"].format(min=fmt_date(earliest), max=fmt_date(latest))
 
     # questions
     raw_answers = payload.get("answers")

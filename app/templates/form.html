@@ -42,20 +42,28 @@
             {{ err('department') }}
           </div>
         </div>
-        {% if date_options|length > 1 %}
         <div class="field" data-field="work_date" style="margin-top: var(--s5)">
-          <label class="field__label" for="work_date">За коя дата е отчетът?</label>
-          <div class="select-wrap">
-            <select class="select" id="work_date" name="work_date" aria-describedby="err-work_date">
-              {% for d in date_options %}<option value="{{ d.value }}">{{ d.label }}</option>{% endfor %}
-            </select>
-            <svg class="icon"><use href="#i-chevron-down"/></svg>
+          <label class="field__label" for="work_date_btn" id="work_date_label">Дата на отчета</label>
+          {% if picker.hint %}<p class="field__help">{{ picker.hint }}</p>{% endif %}
+          <div class="datepicker" data-today="{{ picker.today }}" data-min="{{ picker.min }}">
+            <input type="hidden" id="work_date" name="work_date" value="{{ picker.today }}">
+            <button type="button" class="input datepicker__trigger" id="work_date_btn" aria-haspopup="dialog" aria-expanded="false" aria-describedby="err-work_date">
+              <svg class="icon"><use href="#i-calendar"/></svg>
+              <span class="datepicker__value">{{ picker.today_display }}</span>
+              <span class="datepicker__fmt">дд.мм.гггг</span>
+            </button>
+            <div class="datepicker__pop" role="dialog" aria-label="Избор на дата" aria-modal="false">
+              <div class="datepicker__head">
+                <button type="button" class="datepicker__nav" data-nav="-1" aria-label="Предишен месец"><svg class="icon"><use href="#i-chevron-left"/></svg></button>
+                <div class="datepicker__title" aria-live="polite"></div>
+                <button type="button" class="datepicker__nav" data-nav="1" aria-label="Следващ месец"><svg class="icon"><use href="#i-chevron-right"/></svg></button>
+              </div>
+              <div class="datepicker__grid" role="grid"></div>
+              <div class="datepicker__foot"><button type="button" class="datepicker__today">Днес</button></div>
+            </div>
           </div>
           {{ err('work_date') }}
         </div>
-        {% else %}
-        <input type="hidden" id="work_date" name="work_date" value="{{ date_options[0].value }}">
-        {% endif %}
       </section>
 
       {% set ns = namespace(n=1) %}
@@ -126,4 +134,5 @@
   </div>
 </section>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', path='js/form.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='js/datepicker.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/form.js') }}" defer></script>{% endblock %}

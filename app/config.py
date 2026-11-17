@@ -14,7 +14,7 @@ class Settings:
     questionnaire_dir: Path = BASE_DIR / "questionnaire"
     active_questionnaire_version: int | None = None
     timezone: str = "Europe/Sofia"  # local "work date" zone; DB timestamps are always UTC
-    max_backdate_days: int = 1
+    max_backdate_days: int = 7
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -24,5 +24,5 @@ class Settings:
                 "DATABASE_URL", f"sqlite:///{BASE_DIR / 'local-dev.db'}"
             ),
             active_questionnaire_version=int(active) if active else None,
-            max_backdate_days=int(os.environ.get("MAX_BACKDATE_DAYS", "1")),
+            max_backdate_days=int(os.environ.get("MAX_BACKDATE_DAYS", "7")),
         )
