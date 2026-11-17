@@ -32,7 +32,7 @@ pip install -r requirements-dev.txt
 python -m pytest                 # fast, SQLite
 ```
 
-The same suite also runs on PostgreSQL, with the schema built by the real Alembic migration, plus extra Postgres-only checks (`tests/test_postgres.py`). The target database is wiped for every test, so its name must contain `test`:
+The same suite also runs on PostgreSQL, with the schema built by the real Alembic migration, plus extra Postgres-only checks (`tests/test_postgres.py`). **The target database is wiped (public schema dropped) for every test**, so the runner refuses to start unless all three hold: the database name is exactly `mik_test`, the host is `localhost`, `127.0.0.1`, `::1` or `db-test`, and you opt in with `ALLOW_DESTRUCTIVE_TESTS=1` (see `tests/safety.py`). It also refuses a URL equal to `DATABASE_URL`. `docker-compose.test.yml` sets all of this for its throw-away database.
 
 ```bash
 # with Docker (throw-away database in memory, nothing persisted):
@@ -40,7 +40,7 @@ docker compose -f docker-compose.test.yml up --build --abort-on-container-exit -
 docker compose -f docker-compose.test.yml down
 
 # or against any PostgreSQL you have:
-TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/mik_test python -m pytest
+ALLOW_DESTRUCTIVE_TESTS=1 TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/mik_test python -m pytest
 ```
 
 ## Dependencies (locked)

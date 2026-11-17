@@ -3,9 +3,10 @@
 By default tests run on a temporary SQLite file. Set TEST_DATABASE_URL to a PostgreSQL URL to run the SAME
 tests on PostgreSQL, with the schema created by the real Alembic migration (so the migration is tested too):
 
-    TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/mik_test python -m pytest
+    ALLOW_DESTRUCTIVE_TESTS=1 TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/mik_test python -m pytest
 
-The target database is WIPED for every test, so its name must contain "test" (safety check).
+The target database is WIPED for every test. Safety (tests/safety.py): the name must be exactly `mik_test`, the host
+must be local/throw-away (localhost, 127.0.0.1, ::1, db-test), and ALLOW_DESTRUCTIVE_TESTS=1 must be set.
 """
 import copy
 import os
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from tests.safety import destructive_target_problem
 
 ROOT = Path(__file__).resolve().parent.parent
 REAL_DIR = ROOT / "questionnaire"
@@ -28,11 +30,10 @@ def reset_postgres(url: str) -> None:
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
-    from sqlalchemy.engine import make_url
 
-    name = (make_url(url).database or "").lower()
-    if "test" not in name:
-        pytest.exit(f"Refusing to wipe database {name!r}: TEST_DATABASE_URL must point at a database with 'test' in its name.", 2)
+    problem = destructive_target_problem(url, os.environ)
+    if problem:
+        pytest.exit(f"Refusing to wipe the TEST_DATABASE_URL database: {problem}", 2)
     engine = create_engine(url)
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA public CASCADE"))
@@ -49,6 +50,14 @@ def reset_postgres(url: str) -> None:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = old
+
+
+def pytest_configure(config):
+    """Fail fast, before any test runs, if the PostgreSQL target is not an approved disposable database."""
+    if TEST_DB:
+        problem = destructive_target_problem(TEST_DB, os.environ)
+        if problem:
+            raise pytest.UsageError(f"Refusing to run against TEST_DATABASE_URL: {problem}")
 
 
 @pytest.fixture

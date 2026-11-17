@@ -37,3 +37,7 @@ data/
 # Only clearly synthetic datasets may be committed:
 !datasets/synthetic/
 !datasets/synthetic/**
+
+# Filled business materials (participant lists, interview notes, filled order tracking) must live in approved company storage, not Git
+private/
+docs/business/private/

@@ -12,3 +12,12 @@ datasets
 exports
 backups
 ui-review
+# never ship data, dumps, exports or keys in an image
+private
+docs/business/private
+*.dump
+*.sql
+*.csv
+*.jsonl
+*.pem
+*.key

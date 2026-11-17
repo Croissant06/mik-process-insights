@@ -17,6 +17,13 @@ Companion to the planning notes kept in the project knowledge base. Last updated
 - Verified: full suite on PostgreSQL 16 through the real migration (45 passed) and on SQLite (41 passed, 4 Postgres-only skipped). Presiyan also ran the app in Docker and confirmed submissions and JSONB answers are stored in PostgreSQL.
 - Provisional hosting: company computer or Linux server + Docker Compose + persistent PostgreSQL + internal network + approved VPN for remote admin (to discuss with Martin). Nothing deployed.
 
+## Pre-merge safeguards (ChatGPT review, 17 Nov late evening)
+- **Local Docker verification (Presiyan):** `docker-compose.test.yml` run → 43 passed / 2 failed (files missing in the test image), fixed in cea114c; the re-run gave **45 passed, exit 0**. The app also ran in Docker with submissions and JSONB answers stored in PostgreSQL.
+- **Form fails closed without JavaScript:** the form now has `method="post"` to `/js-required` (stores nothing, does not read the body, answers 400 in Bulgarian) and a `<noscript>` notice that hides the form; names and answers can never end up in a URL. The only submission path is still `POST /api/submissions` from `form.js`.
+- **Destructive-test guard:** PostgreSQL tests wipe the schema, so they now require db name exactly `mik_test`, an approved local/throw-away host, and `ALLOW_DESTRUCTIVE_TESTS=1` (`tests/safety.py`, unit-tested).
+- Business drafts improved without management decisions (core interview questions, order-tracking format advice, notice do-not-enter list, management-meeting priorities, `docs/business/README.md`); no questionnaire change (v1 is immutable; wording suggestions wait for a v2 agreed with management).
+- Tests after these changes: PostgreSQL 16 **65 passed**; SQLite 61 passed, 4 skipped. Runtime check on PostgreSQL: `/healthz` 200, calendar floor 2020-01-01, form visible with JS and hidden with notice without JS.
+
 ## Not verified
 - **Docker was not run in the cloud build environment** (no daemon): the new multi-stage Dockerfile, the Compose web healthcheck and `docker-compose.test.yml` still need a run on Presiyan's machine (`docker compose up --build`, then the test command in the README). PostgreSQL itself was tested directly (see above).
 - Tested only with synthetic data, no real users. No formal accessibility audit (WCAG) and no test on real phones or Safari/Firefox; only Chromium was used. Context7 was not available, so no library docs were consulted.

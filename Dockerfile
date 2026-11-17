@@ -18,7 +18,7 @@ RUN pip install --require-hashes -r requirements-dev.txt
 COPY tests ./tests
 COPY docs ./docs
 # Files that regression tests read (never the real .env; .dockerignore keeps it out of the build context)
-COPY Dockerfile .env.example ./
+COPY Dockerfile .env.example docker-compose.test.yml ./
 CMD ["python", "-m", "pytest", "-q"]
 
 # Runtime image (last stage = default target)

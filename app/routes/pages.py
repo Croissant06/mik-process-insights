@@ -42,3 +42,16 @@ def form_page(request: Request):
         "form.html",
         {"q": definition, "today_label": bg_date(today), "picker": picker},
     )
+
+
+@router.post("/js-required", response_class=HTMLResponse, name="js_required")
+def js_required(request: Request):
+    """Fail-closed target of the form's plain (no-JavaScript) submit.
+
+    It deliberately does NOT read the request body and stores nothing; the only submission path is
+    POST /api/submissions via form.js. It exists so a failed/blocked script can never turn the form
+    into a GET that puts names and answers into the URL.
+    """
+    resp = request.app.state.templates.TemplateResponse(request, "js_required.html", {}, status_code=400)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp

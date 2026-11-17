@@ -14,7 +14,16 @@
     </div>
   </div>
 
-  <form id="report" class="card rise" style="--i:1" novalidate data-version="{{ q.version }}">
+  <noscript>
+    <div class="banner banner--error" role="alert">
+      <svg class="icon"><use href="#i-circle-alert"/></svg>
+      <span>За да изпратите отчета, е нужно да е включен JavaScript в браузъра. Формулярът не може да бъде изпратен без него.</span>
+    </div>
+    <style>#report{display:none}.rise{opacity:1!important;animation:none!important}</style>
+  </noscript>
+
+  {# method="post" is a fail-closed fallback only: if the script does not load, the browser posts to a page that stores nothing and reads nothing. Never GET, so no answers or names can end up in the URL. #}
+  <form id="report" class="card rise" style="--i:1" novalidate method="post" action="/js-required" data-version="{{ q.version }}">
     <div class="card__body">
       <div id="form-error" class="banner banner--error" role="alert" hidden>
         <svg class="icon"><use href="#i-circle-alert"/></svg><span></span>

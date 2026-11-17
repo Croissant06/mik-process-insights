@@ -23,6 +23,7 @@ services:
       target: test
     environment:
       TEST_DATABASE_URL: postgresql+psycopg://test:test@db-test:5432/mik_test
+      ALLOW_DESTRUCTIVE_TESTS: "1"   # explicit opt-in: this database is throw-away and is wiped for every test
     depends_on:
       db-test:
         condition: service_healthy

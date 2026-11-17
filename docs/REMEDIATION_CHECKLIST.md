@@ -17,6 +17,14 @@ Source: `docs/audit/TECHNICAL_AUDIT_2026-11-17.md`. Rule: **no real employee dat
 - [ ] **M2** Backdating policy and floor date (audit suggests `MAX_BACKDATE_DAYS=7`, floor = pilot start); management decision
 - [ ] Real department list, participants, device access (questions for Martin)
 
+## Added from the ChatGPT review (pre-pilot)
+- [ ] Production must require PostgreSQL even if an explicit SQLite `DATABASE_URL` is supplied (e.g. `APP_ENV=production` rejects `sqlite:`)
+- [ ] Fail closed for a draft/placeholder questionnaire in production; reject unapproved versions (needs an `approved` flag in the YAML)
+- [ ] M1 detail: same idempotency key + different payload must not silently succeed (409)
+- [ ] Do not treat LAN membership or self-declared names as verified identity
+- [ ] Exports: aggregate/de-identified by default; pseudonyms are not anonymity; review free text; no external AI sharing without approved governance
+- [x] Pre-merge: form fails closed without JavaScript; destructive-test guard; build-context exclusions tightened; filled materials kept out of Git
+
 ## P2 — Hardening before pilot (batch B)
 - [ ] **H2** Require `Content-Type: application/json` (415); reject foreign `Origin`/`Sec-Fetch-Site: cross-site` (403); body size cap (~64 KB); per-IP rate limit at proxy. Also required for admin cookies/CSRF
 - [ ] **M1** Idempotency key per form fill (UUID as PK, `ON CONFLICT DO NOTHING`)
