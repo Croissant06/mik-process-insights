@@ -222,3 +222,14 @@ def test_unknown_questionnaire_version_rejected(client, valid_payload):
 def test_malformed_body(client):
     assert client.post("/api/submissions", content=b"not json").status_code == 400
     assert post(client, ["x"]).status_code == 422
+
+
+def test_management_questionnaire_doc_is_up_to_date():
+    """docs/business/QUESTIONNAIRE_BG.md is generated from the YAML; fail if someone edits one without the other."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(root / "scripts" / "generate_questionnaire_doc.py"), "--check"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr

@@ -15,6 +15,14 @@ Companion to the planning notes kept in the project knowledge base. Last updated
 - **PostgreSQL / Docker Compose were not run** (no Docker daemon in the build environment). The Postgres migration and `docker compose up` still need a first run on Presiyan's machine.
 - Tested only with synthetic data, no real users. No formal accessibility audit (WCAG) and no test on real phones or Safari/Firefox; only Chromium was used. Context7 was not available, so no library docs were consulted.
 
+## Business documents prepared (Bulgarian, `docs/business/`) — all drafts
+- `QUESTIONNAIRE_BG.md` — generated from the questionnaire YAML (`python scripts/generate_questionnaire_doc.py`; a test fails if it is out of date), initiative summary and an empty participant-list template.
+- `ORDER_TRACKING_BG.md` — template for tracking a real order (activities, roles, software, information flow, work vs waiting time, duplicated information, approvals, obstacles). Stages are examples only, not verified.
+- `EMPLOYEE_INTERVIEWS_BG.md` — short interview guide and note template.
+- `MANAGEMENT_QUESTIONS_BG.md` — checklist for Martin and Miglena (MES/AI, departments, participants, devices, hosting, privacy, retention, 25 Nov meeting).
+- `EMPLOYEE_NOTICE_BG.md` — proposed employee notice, **pending management approval**; contains placeholders, no legal claims.
+None contains invented company or employee data. Wording was not reviewed by a native-speaker editor or a lawyer.
+
 ## Not built yet (planned Wed/Thu)
 Admin view (date/department filter, search), authentication, CSV/Excel export, basic aggregate insights, department configuration screen.
 
