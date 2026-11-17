@@ -100,10 +100,28 @@ def test_backdating_zero_means_today_only(make_client, valid_payload, monkeypatc
     assert post(c, p).status_code == 201
 
 
-def test_default_backdate_window_is_seven_days():
+def test_default_has_no_backdate_limit_but_never_future(make_client, valid_payload, monkeypatch):
+    from datetime import date
+
     from app.config import Settings
 
-    assert Settings(database_url="sqlite://").max_backdate_days == 7
+    assert Settings(database_url="sqlite://").max_backdate_days is None
+    freeze_today(monkeypatch, date(2026, 11, 17))
+    c = make_client()
+    p = valid_payload(c)
+    for ok in ("2026-11-17", "2026-06-01", "2020-01-01"):
+        p["work_date"] = ok
+        assert post(c, p).status_code == 201, ok
+    for bad in ("2026-11-18", "2019-12-31", "1926-05-05"):  # future, below the sanity floor
+        p["work_date"] = bad
+        assert "work_date" in post(c, p).json()["errors"], bad
+
+
+def test_env_parsing_of_backdate_setting():
+    from app.config import _parse_backdate
+
+    assert _parse_backdate(None) is None and _parse_backdate("") is None and _parse_backdate("unlimited") is None
+    assert _parse_backdate("0") == 0 and _parse_backdate("14") == 14
 
 
 def test_date_picker_uses_server_side_sofia_date(make_client, monkeypatch):
@@ -116,6 +134,14 @@ def test_date_picker_uses_server_side_sofia_date(make_client, monkeypatch):
     assert 'value="2026-11-18"' in html and ">18.11.2026<" in html
     assert 'name="work_date"' in html and 'id="work_date" name="work_date"' in html
     assert "до 7 дни назад" in html
+
+
+def test_unlimited_picker_exposes_floor_and_no_hint(make_client, monkeypatch):
+    from datetime import date
+
+    freeze_today(monkeypatch, date(2026, 11, 18))
+    html = make_client().get("/").text
+    assert 'data-min="2020-01-01"' in html and "дни назад" not in html
 
 
 def test_picker_defaults_to_sofia_not_utc_day(make_client, monkeypatch):

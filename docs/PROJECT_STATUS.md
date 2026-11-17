@@ -9,6 +9,7 @@ Companion to the planning notes kept in the project knowledge base. Last updated
 
 - UI design pass (tokens, components, Inter, Lucide, persistent light/dark theme) checked with Playwright at 375, 768 and 1440 px in light and dark: no horizontal overflow, no unexpected console errors, theme persists after reload, Inter loads. Screenshots: `ui-review/` in the project files.
 - Calendar date picker checked with Playwright (browser clock set to a non-Sofia timezone): default = server Sofia date, future and out-of-window days disabled, keyboard navigation, Enter/Escape/«Днес», reset after submit, tampered future date rejected with 422. Screenshots in `ui-review/calendar/`.
+- Calendar now allows every past day by default (month/year selects); checked in Playwright incl. picking 15.03.2024 end to end. Screenshots in `ui-review/calendar/`.
 
 ## Not verified
 - **PostgreSQL / Docker Compose were not run** (no Docker daemon in the build environment). The Postgres migration and `docker compose up` still need a first run on Presiyan's machine.

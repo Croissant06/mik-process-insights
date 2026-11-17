@@ -7,3 +7,33 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# --- Sensitive data: never commit real submissions, DB dumps, exports or credentials ---
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.pgdump
+*.sql
+*.sql.gz
+*.bak
+*.backup
+pgdata/
+postgres-data/
+backups/
+exports/
+export/
+data/
+*.csv
+*.jsonl
+*.ndjson
+*.parquet
+*.xlsx
+*.xls
+# Only clearly synthetic datasets may be committed:
+!datasets/synthetic/
+!datasets/synthetic/**

@@ -25,9 +25,15 @@ def today_local(tz_name: str, now: datetime | None = None) -> date:
     return (now.astimezone(tz) if now else datetime.now(tz)).date()
 
 
-def date_window(today: date, max_backdate_days: int) -> tuple[date, date]:
+# Sanity floor so a typo such as year 1926 is rejected even when backdating is unlimited.
+EARLIEST_WORK_DATE = date(2020, 1, 1)
+
+
+def date_window(today: date, max_backdate_days: int | None) -> tuple[date, date]:
     """Inclusive (earliest, latest) work date an employee may pick. Never in the future."""
-    return today - timedelta(days=max(0, max_backdate_days)), today
+    if max_backdate_days is None:
+        return EARLIEST_WORK_DATE, today
+    return max(EARLIEST_WORK_DATE, today - timedelta(days=max(0, max_backdate_days))), today
 
 
 def fmt_date(d: date) -> str:
@@ -91,7 +97,7 @@ def _multi(q: dict, value, errors: dict) -> dict:
 
 
 def validate_submission(
-    definition: dict, payload: dict, *, today: date, max_backdate_days: int
+    definition: dict, payload: dict, *, today: date, max_backdate_days: int | None
 ) -> tuple[dict | None, dict[str, str]]:
     """Return (clean_data, errors). clean_data is None when errors is non-empty."""
     errors: dict[str, str] = {}

@@ -37,8 +37,38 @@
     const clamp = (o) => (ts(o) < ts(min) ? min : ts(o) > ts(today) ? today : o);
     const inRange = (o) => ts(o) >= ts(min) && ts(o) <= ts(today);
 
+    // When many months are selectable, replace the static title with month + year selects for fast jumping.
+    const spanMonths = monthKey(today) - monthKey(min);
+    let monSel = null, yearSel = null;
+    if (spanMonths > 2) {
+      let years = "";
+      for (let y = today.y; y >= min.y; y--) years += `<option value="${y}">${y}</option>`;
+      title.innerHTML =
+        `<select class="datepicker__sel" aria-label="Месец">${MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("")}</select>` +
+        `<select class="datepicker__sel" aria-label="Година">${years}</select>`;
+      [monSel, yearSel] = title.querySelectorAll("select");
+      const jump = () => {
+        let v = { y: Number(yearSel.value), m: Number(monSel.value), d: 1 };
+        if (monthKey(v) < monthKey(min)) v = { y: min.y, m: min.m, d: 1 };
+        if (monthKey(v) > monthKey(today)) v = { y: today.y, m: today.m, d: 1 };
+        view = v;
+        render();
+      };
+      monSel.addEventListener("change", jump);
+      yearSel.addEventListener("change", jump);
+    }
+
     function render() {
-      title.textContent = `${MONTHS[view.m - 1]} ${view.y}`;
+      if (monSel) {
+        yearSel.value = view.y;
+        monSel.value = view.m;
+        [...monSel.options].forEach((o) => {
+          const k = view.y * 12 + Number(o.value);
+          o.disabled = k < monthKey(min) || k > monthKey(today);
+        });
+      } else {
+        title.textContent = `${MONTHS[view.m - 1]} ${view.y}`;
+      }
       prevBtn.disabled = monthKey(view) <= monthKey(min);
       nextBtn.disabled = monthKey(view) >= monthKey(today);
       // roving tabindex target: focus date if visible, else selected, else first selectable day

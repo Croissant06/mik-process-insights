@@ -126,6 +126,9 @@
 @media (max-width: 600px) { .datepicker__pop { width: 100%; min-width: 0; } }
 .datepicker__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s2); }
 .datepicker__title { font-weight: 600; letter-spacing: -.01em; }
+.datepicker__title { display: flex; gap: var(--s2); align-items: center; }
+.datepicker__sel { font: inherit; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 6px 8px; min-height: 40px; cursor: pointer; }
+.datepicker__sel:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 45%, transparent); outline-offset: 1px; }
 .datepicker__nav { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); border-radius: var(--r-sm); cursor: pointer; transition: background-color var(--t-fast) ease, transform var(--t-fast) var(--ease-out); }
 .datepicker__nav:active:not(:disabled) { transform: scale(.92); }
 .datepicker__nav:disabled { color: var(--text-muted); opacity: .35; cursor: default; }

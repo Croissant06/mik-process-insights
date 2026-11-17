@@ -48,7 +48,8 @@ questionnaire/  versioned questionnaire definitions (YAML)
 migrations/     Alembic migrations
 scripts/        seed_synthetic.py
 tests/          pytest suite
-docs/           PROJECT_STATUS.md, DECISIONS.md
+datasets/synthetic/  the only place datasets may be committed (synthetic only)
+docs/           PROJECT_STATUS.md, DECISIONS.md, ADMIN_EXPORT_REQUIREMENTS.md (future)
 ```
 
 ## API
@@ -57,4 +58,4 @@ docs/           PROJECT_STATUS.md, DECISIONS.md
 - `POST /api/submissions` — JSON; `201 {id}` or `422 {errors}`. All validation is enforced on the backend.
 - `GET /healthz`
 
-Work dates are Europe/Sofia calendar days; the calendar picker defaults to today (server-side Sofia date) and allows going back `MAX_BACKDATE_DAYS` days (default 7, `0` = today only). Future dates are never allowed, and the backend enforces the window. Database timestamps are UTC.
+Work dates are Europe/Sofia calendar days; the calendar picker defaults to today (server-side Sofia date). By default every past day (from 2020-01-01) is selectable; set `MAX_BACKDATE_DAYS` to a number to limit it (`0` = today only). Future dates are never allowed, and the backend enforces the window. Database timestamps are UTC.

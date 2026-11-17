@@ -18,8 +18,8 @@ def bg_date(d) -> str:
     return f"{d.day} {MONTHS_BG[d.month - 1]} {d.year} г."
 
 
-def backdate_hint(days: int) -> str:
-    if days <= 0:
+def backdate_hint(days: int | None) -> str:
+    if days is None or days <= 0:
         return ""
     return f"Може да изберете до {days} {'ден' if days == 1 else 'дни'} назад."
 
