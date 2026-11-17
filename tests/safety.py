@@ -21,6 +21,15 @@ APPROVED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "db-test"})
 OPT_IN_VAR = "ALLOW_DESTRUCTIVE_TESTS"
 
 
+_LOCAL = {"localhost", "127.0.0.1", "::1"}
+
+
+def _target(u) -> tuple[str, int, str]:
+    """(host, port, database) with the local aliases and the default port normalised."""
+    host = "localhost" if (u.host or "localhost") in _LOCAL else u.host
+    return (host, u.port or 5432, u.database or "")
+
+
 def destructive_target_problem(url: str, env: Mapping[str, str]) -> str | None:
     """Return why `url` must NOT be wiped, or None if it is an approved disposable test database."""
     try:
@@ -33,10 +42,19 @@ def destructive_target_problem(url: str, env: Mapping[str, str]) -> str | None:
         return f"database name must be exactly {APPROVED_DB_NAME!r}, got {u.database!r}."
     if (u.host or "") not in APPROVED_HOSTS:
         return f"host must be one of {sorted(APPROVED_HOSTS)}, got {u.host!r}."
-    # Never wipe the database the app itself is configured to use.
+    # libpq lets query parameters (host=, hostaddr=, dbname=, service=, options=...) override the URL's host and
+    # database, which would defeat the checks above. The approved target needs none, so none are allowed.
+    if u.query:
+        return f"connection-string parameters are not allowed, got {sorted(u.query)}."
+    # Never wipe the database the app itself is configured to use: compare the effective target, not the text.
     app_url = env.get("DATABASE_URL", "").strip()
-    if app_url and app_url == url:
-        return "TEST_DATABASE_URL equals DATABASE_URL (the application database)."
+    if app_url:
+        try:
+            a = make_url(app_url)
+        except ArgumentError:
+            return "DATABASE_URL is set but is not a valid URL; refusing to guess."
+        if a.drivername.startswith("postgresql") and _target(a) == _target(u):
+            return "TEST_DATABASE_URL points at the same database as DATABASE_URL (the application database)."
     if env.get(OPT_IN_VAR) != "1":
         return f"set {OPT_IN_VAR}=1 to confirm that this database may be wiped on every test."
     return None

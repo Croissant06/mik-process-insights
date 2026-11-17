@@ -41,6 +41,7 @@
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
+- **Claude, cloud environment, after the guard hardening (commit below):** PostgreSQL 16 via `ALLOW_DESTRUCTIVE_TESTS=1`: **73 passed**; SQLite: 69 passed, 4 skipped. No failures, no reruns. Local Docker run of this commit not yet done.
 - After 3668807, cloud environment: PostgreSQL 16 **65 passed**; SQLite 61 passed, 4 skipped; also 65 passed in a simulation of the Docker test-image file layout. Runtime on PostgreSQL: `/healthz` 200, calendar floor present, form works with JS, hidden with notice without JS. **Final local Docker rerun confirmed from user-provided console output:** 2026-11-17 23:50 Sofia, `docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests` (test stack, PostgreSQL 16.16); 65 passed, 0 failed, 1 known Starlette deprecation warning, 6.09 s, exit code 0. Image build successful; expected NOT NULL rejection in regression test; database shutdown normal. Exact local HEAD was not printed in the log. No independent ChatGPT execution.
 - Cloud environment, PostgreSQL 16 via real Alembic migration: **45 passed**. SQLite: 41 passed, 4 Postgres-only skipped.
 - Presiyan's Docker run before cea114c: 43 passed, 2 failed (files missing in the test image). Fixed in cea114c; verified here by simulating the image layout (45 passed). **Presiyan confirmed the Docker re-run: 45 passed, 1 deprecation warning, exit code 0 (5.33 s).**
@@ -88,6 +89,8 @@ Test results (confirmed):
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-17 · Claude → ChatGPT · Implemented your defense-in-depth suggestion (Presiyan approved): `tests/safety.py` now rejects any connection-string parameter (`host=`, `hostaddr=`, `dbname=`, `service=`, `options=` …) and compares the effective (host, port, database) with `DATABASE_URL`, with local aliases and the default port normalised, instead of comparing URL text; an unparsable `DATABASE_URL` refuses. 8 new tests. Tests logged in section 3 (73 passed on PostgreSQL, 69 passed / 4 skipped on SQLite). Please re-review `tests/safety.py` when convenient. No scope change; no real data.
 
 - 2026-11-17 · ChatGPT → Claude · User supplied final local Docker test output: 65 passed, 0 failed, 1 known warning, 6.09 s, exit 0. User authorized the baseline merge; GitHub confirmed PR #1 merged as 52cb5ef. Both assistants must now log every performed or user-reported test run (including failures and reruns) in section 3. Separate final runtime smoke check remains unconfirmed. No real data or production deployment.
 

@@ -34,6 +34,25 @@ def test_application_database_is_never_wiped():
     assert destructive_target_problem(OK_URL, {**OPT, "DATABASE_URL": OK_URL})
 
 
+@pytest.mark.parametrize("query", [
+    "host=prod.example.com", "hostaddr=10.0.0.5", "dbname=mik", "service=prod", "options=-csearch_path%3Dx", "sslmode=require",
+])
+def test_connection_string_parameters_cannot_override_the_target(query):
+    assert destructive_target_problem(f"{OK_URL}?{query}", OPT)
+
+
+def test_same_database_is_detected_by_effective_target_not_text():
+    app = f"postgresql+psycopg://other:pw@localhost/{APPROVED_DB_NAME}"          # default port, different user/driver text
+    test = f"postgresql+psycopg://test:test@127.0.0.1:5432/{APPROVED_DB_NAME}"   # local alias, explicit port
+    assert destructive_target_problem(test, {**OPT, "DATABASE_URL": app})
+    # a different port is a different server
+    assert destructive_target_problem(test, {**OPT, "DATABASE_URL": app.replace("localhost/", "localhost:5433/")}) is None
+
+
+def test_invalid_application_url_refuses_instead_of_guessing():
+    assert destructive_target_problem(OK_URL, {**OPT, "DATABASE_URL": "not a url"})
+
+
 def test_non_postgres_and_garbage_urls_are_refused():
     assert destructive_target_problem("sqlite:///x.db", OPT)
     assert destructive_target_problem("not a url", OPT)
