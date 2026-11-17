@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ q.title }} · MIK | Process Insights{% endblock %}
+{% block content %}
+<section id="form-view" class="card">
+  <h2 class="card__title">{{ q.title }}</h2>
+  <p class="card__meta">{{ today_label }} · Приблизително {{ q.estimated_minutes }} минути</p>
+  {% if q.notice %}<p class="notice">{{ q.notice }}</p>{% endif %}
+
+  <form id="report" novalidate data-version="{{ q.version }}">
+    <div class="row">
+      <div class="field" data-field="respondent_name">
+        <label for="respondent_name">{{ q.respondent.name.label }}{% if not q.respondent.name.required %} <span class="opt">(по желание)</span>{% endif %}</label>
+        <input id="respondent_name" name="respondent_name" type="text" autocomplete="name"
+               maxlength="{{ q.respondent.name.max_length }}" placeholder="{{ q.respondent.name.placeholder }}"
+               {% if q.respondent.name.required %}aria-required="true"{% endif %}>
+        <p class="error" role="alert"></p>
+      </div>
+      <div class="field" data-field="department">
+        <label for="department">{{ q.respondent.department.label }}</label>
+        <select id="department" name="department" aria-required="true">
+          <option value="">{{ q.respondent.department.placeholder }}</option>
+          {% for o in q.departments.options %}<option value="{{ o.code }}">{{ o.label }}</option>{% endfor %}
+        </select>
+        <p class="error" role="alert"></p>
+      </div>
+    </div>
+
+    {% if date_options|length > 1 %}
+    <div class="field" data-field="work_date">
+      <label for="work_date">За коя работна дата е отчетът?</label>
+      <select id="work_date" name="work_date">
+        {% for d in date_options %}<option value="{{ d.value }}">{{ d.label }}</option>{% endfor %}
+      </select>
+      <p class="error" role="alert"></p>
+    </div>
+    {% else %}
+    <input type="hidden" id="work_date" name="work_date" value="{{ date_options[0].value }}">
+    {% endif %}
+
+    {% for item in q.questions %}
+    <div class="field" data-field="{{ item.id }}" data-type="{{ item.type }}">
+      {% if item.type == 'multi_choice' %}
+      <fieldset>
+        <legend>{{ item.label }}{% if not item.required %} <span class="opt">(по желание)</span>{% endif %}</legend>
+        {% if item.help %}<p class="help">{{ item.help }}</p>{% endif %}
+        <div class="choices">
+          {% for o in item.options %}
+          <label class="choice">
+            <input type="checkbox" name="{{ item.id }}" value="{{ o.code }}"{% if o.exclusive %} data-exclusive{% endif %}>
+            <span class="choice__box" aria-hidden="true"></span>
+            <span class="choice__label">{{ o.label }}</span>
+          </label>
+          {% if o.allows_text %}
+          <div class="choice__text" data-text-for="{{ o.code }}" hidden>
+            <input type="text" maxlength="300" placeholder="{{ o.text_placeholder or 'Уточнете...' }}" aria-label="{{ o.label }}">
+            <p class="error" role="alert"></p>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% else %}
+      <label for="{{ item.id }}">{{ item.label }}{% if not item.required %} <span class="opt">(по желание)</span>{% endif %}</label>
+      {% if item.help %}<p class="help">{{ item.help }}</p>{% endif %}
+      {% if item.type == 'textarea' %}
+      <textarea id="{{ item.id }}" name="{{ item.id }}" rows="3" maxlength="{{ item.max_length or 2000 }}" placeholder="{{ item.placeholder or '' }}"></textarea>
+      {% else %}
+      <input id="{{ item.id }}" name="{{ item.id }}" type="text" maxlength="{{ item.max_length or 300 }}" placeholder="{{ item.placeholder or '' }}">
+      {% endif %}
+      {% endif %}
+      <p class="error" role="alert"></p>
+    </div>
+    {% endfor %}
+
+    <p id="form-error" class="banner banner--error" role="alert" hidden></p>
+    <button id="submit" class="btn" type="submit">Изпрати дневен отчет</button>
+  </form>
+</section>
+
+<section id="success-view" class="card card--success" hidden>
+  <div class="tick" aria-hidden="true">✓</div>
+  <h2 class="card__title">Благодарим Ви!</h2>
+  <p>Дневният отчет е изпратен успешно.</p>
+  <button id="another" class="btn btn--ghost" type="button">Попълни нов отчет</button>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='form.js') }}" defer></script>{% endblock %}

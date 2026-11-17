@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}MIK | Process Insights{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__inner">
+      <h1 class="hero__brand">MIK | Process Insights</h1>
+      <p class="hero__tagline">Заедно към по-ефективна работна среда.</p>
+    </div>
+  </header>
+  <main class="page">{% block content %}{% endblock %}</main>
+  <footer class="foot">Вътрешна система на МИК-БГ · Информацията се използва само за анализ на процесите</footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
