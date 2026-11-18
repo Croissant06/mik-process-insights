@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Отчет · MIK | Process Insights{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', path='css/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="container--wide" style="margin-inline:auto">
+  <div class="admin-bar">
+    <a href="/admin" class="who">← Всички отчети</a>
+    <form method="post" action="/admin/logout" class="who">
+      {{ user.name }} · <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn--secondary" type="submit">Изход</button>
+    </form>
+  </div>
+  {% if not r %}
+    <section class="card"><div class="card__body"><h1 style="margin-top:0">Отчетът не е намерен</h1></div></section>
+  {% else %}
+  <section class="card"><div class="card__body">
+    <h1 style="margin-top:0">Отчет за {{ r.work_date }}</h1>
+    <dl class="kv">
+      <dt>Подаден</dt><dd>{{ r.submitted }} (Европа/София)</dd>
+      <dt>Име</dt><dd>{{ r.name or '—' }}</dd>
+      <dt>Отдел</dt><dd>{{ r.department }}</dd>
+      <dt>Версия на въпросника</dt><dd>v{{ r.version }}</dd>
+    </dl>
+    {% for row in r.rows %}
+      <div class="answer">
+        <h3>{{ row.label }}</h3>
+        {% if row.choices is defined %}
+          {% if row.choices %}<ul>{% for c in row.choices %}<li>{{ c.label }}{% if c.text %}: {{ c.text }}{% endif %}</li>{% endfor %}</ul>
+          {% else %}<p class="muted">—</p>{% endif %}
+        {% else %}
+          <p>{{ row.text if row.text else '—' }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div></section>
+  {% endif %}
+</div>
+{% endblock %}

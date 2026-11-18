@@ -1,0 +1,25 @@
+/* Admin pages only. Uses the shared design tokens; the employee form does not load this file. */
+.container--wide { max-width: 1040px; }
+.admin-bar { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; justify-content: space-between; margin-bottom: var(--s5); }
+.admin-bar form { margin: 0; }
+.admin-bar .btn { width: auto; min-height: 40px; padding: 0 var(--s4); }
+.who { color: var(--text-muted); font-size: .95rem; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s3); align-items: end; }
+.filters .btn { min-height: 44px; }
+.table-wrap { overflow-x: auto; margin-top: var(--s4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+table.data { width: 100%; border-collapse: collapse; font-size: .95rem; }
+table.data th, table.data td { text-align: left; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--border); vertical-align: top; }
+table.data th { font-weight: 600; color: var(--text-muted); background: var(--surface-2); white-space: nowrap; }
+table.data tr:last-child td { border-bottom: 0; }
+table.data a { color: var(--accent); font-weight: 600; text-decoration: none; }
+table.data a:hover { text-decoration: underline; }
+.muted { color: var(--text-muted); }
+.pager { display: flex; gap: var(--s3); align-items: center; justify-content: space-between; margin-top: var(--s4); }
+.pager a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--s2) var(--s5); margin: 0 0 var(--s5); }
+.kv dt { color: var(--text-muted); }
+.kv dd { margin: 0; }
+.answer { margin: 0 0 var(--s5); }
+.answer h3 { margin: 0 0 var(--s2); font-size: 1rem; }
+.answer p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.answer ul { margin: 0; padding-left: 1.2rem; }

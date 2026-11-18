@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Отчети · MIK | Process Insights{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', path='css/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="container--wide" style="margin-inline:auto">
+  <div class="admin-bar">
+    <h1 style="margin:0">Подадени отчети</h1>
+    <form method="post" action="/admin/logout" class="who">
+      {{ user.name }} · <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn--secondary" type="submit">Изход</button>
+    </form>
+  </div>
+
+  <form class="card" method="get" action="/admin"><div class="card__body filters">
+    <div class="field"><label class="field__label" for="f-dept">Отдел</label>
+      <div class="select-wrap"><select class="select" id="f-dept" name="department">
+        <option value="">Всички</option>
+        {% for code, label in depts.items() %}<option value="{{ code }}" {{ 'selected' if f.department == code }}>{{ label }}</option>{% endfor %}
+      </select></div></div>
+    <div class="field"><label class="field__label" for="f-from">От дата</label><input class="input" id="f-from" name="from" type="date" value="{{ f['from'] }}"></div>
+    <div class="field"><label class="field__label" for="f-to">До дата</label><input class="input" id="f-to" name="to" type="date" value="{{ f['to'] }}"></div>
+    <div class="field"><label class="field__label" for="f-ver">Версия</label>
+      <div class="select-wrap"><select class="select" id="f-ver" name="version">
+        <option value="">Всички</option>
+        {% for v in versions %}<option value="{{ v }}" {{ 'selected' if f.version == v|string }}>v{{ v }}</option>{% endfor %}
+      </select></div></div>
+    <button class="btn" type="submit">Покажи</button>
+  </div></form>
+
+  <p class="muted" style="margin:var(--s4) 0 0">Общо: {{ total }}. Датата е денят, за който е отчетът; часът е по Европа/София.</p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Дата на отчета</th><th>Подаден</th><th>Име</th><th>Отдел</th><th>Основни задачи</th><th>Вер.</th></tr></thead>
+      <tbody>
+      {% for r in items %}
+        <tr>
+          <td><a href="/admin/reports/{{ r.id }}">{{ r.work_date }}</a></td>
+          <td>{{ r.submitted }}</td>
+          <td>{{ r.name or '—' }}</td>
+          <td>{{ r.department }}</td>
+          <td>{{ r.tasks }}{% if r.tasks|length >= 90 %}…{% endif %}</td>
+          <td>v{{ r.version }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="muted">Няма отчети за избраните условия.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pages > 1 %}
+  <div class="pager">
+    {% if page > 1 %}<a href="/admin?{{ qs }}{{ '&' if qs }}page={{ page - 1 }}">← Предишна</a>{% else %}<span></span>{% endif %}
+    <span class="muted">Страница {{ page }} от {{ pages }}</span>
+    {% if page < pages %}<a href="/admin?{{ qs }}{{ '&' if qs }}page={{ page + 1 }}">Следваща →</a>{% else %}<span></span>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,3 +47,42 @@ class Submission(Base):
     respondent_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     department_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     answers: Mapped[dict] = mapped_column(JsonType, nullable=False)
+
+
+class AdminUser(Base):
+    """A person allowed to open the admin panel (max a handful; created only with scripts/admin_users.py)."""
+
+    __tablename__ = "admin_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    login: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)  # lowercase
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminSession(Base):
+    """Server-side session. `id` is the SHA-256 of the cookie token, so a database leak does not leak live sessions."""
+
+    __tablename__ = "admin_sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    csrf_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AdminAudit(Base):
+    """Who did what in the admin panel. Never stores passwords or attempted login names."""
+
+    __tablename__ = "admin_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("admin_users.id", ondelete="SET NULL"), nullable=True)
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    detail: Mapped[str] = mapped_column(String(255), nullable=False, default="")

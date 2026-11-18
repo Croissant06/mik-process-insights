@@ -22,6 +22,12 @@ def _parse_backdate(raw: str | None) -> int | None:
     return max(0, int(raw))
 
 
+def _parse_bool(raw: str | None, *, default: bool) -> bool:
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 def database_url_from_env(env: dict[str, str] | None = None) -> str:
     """Resolve the database URL.
 
@@ -66,6 +72,8 @@ class Settings:
     # The request's own Host is always allowed.
     allowed_origins: tuple[str, ...] = ()
     max_json_body_bytes: int = 256 * 1024
+    # Admin session cookie "Secure" flag. Must be true whenever the site is served over HTTPS.
+    cookie_secure: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -74,5 +82,6 @@ class Settings:
             database_url=database_url_from_env(),
             active_questionnaire_version=int(active) if active else None,
             max_backdate_days=_parse_backdate(os.environ.get("MAX_BACKDATE_DAYS")),
+            cookie_secure=_parse_bool(os.environ.get("COOKIE_SECURE"), default=os.environ.get("APP_ENV", "").strip().lower() not in DEV_ENVS),
             allowed_origins=tuple(o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()),
         )

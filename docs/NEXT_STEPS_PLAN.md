@@ -10,13 +10,13 @@ Status: **DRAFT, 18 Nov 2026.** Facts below come from Presiyan's notes of the me
 ## Phase 0 — request protection (H2) — *done 18 Nov*
 `Content-Type: application/json` required on `/api/*` (415), cross-site browser requests refused (403, `Origin`/`Sec-Fetch-Site`), body cap 256 KB (413, also while streaming), `ALLOWED_ORIGINS` for a future proxy/domain. Needed before uploads and admin cookies. Tests in `tests/test_request_protection.py`.
 
-## Phase 1 — admin access for 4 people (needs one decision, then ~1 day)
+## Phase 1 — admin access for 4 people — *done 18 Nov (read-only view); decision: own password per person*
 Requirement: only Presiyan, Martin, Росица and Миглена.
 Recommended design (no external services, works with any hosting):
 - Individual accounts in PostgreSQL (`admin_users`: name, login, password hash, `role` = `admin`), created only by a CLI script run by Presiyan; no self-registration, no shared login.
 - Login page in the existing design system; session cookie `HttpOnly`, `SameSite=Strict`, `Secure` once HTTPS exists; CSRF protection = Origin check (done) + token on forms; rate-limited login; simple audit log (who opened/exported what).
 - Read-only admin view first: list/filter by department and date, open a report. Export (Phase 2) after.
-- **Decision:** how admins sign in — (a) own password per person (recommended), (b) e-mail magic link (needs mail sending), (c) HTTP auth at a reverse proxy (weakest audit trail). Also needs the four people's names/login ids from Presiyan (not invented here).
+- **Decided by Presiyan (18 Nov): own password per person.** Built: `admin_users`/`admin_sessions`/`admin_audit` (migration 0002, additive), `scripts/admin_users.py`, login/logout, filtered list, report detail. **Still to do by Presiyan:** create the four accounts (Presiyan, Martin, Росица, Миглена) with the script — logins/names are not invented here. Not yet: CSRF token on future state-changing admin forms beyond logout (the Origin check covers browsers today), per-IP rate limit at a proxy, password change by the user themselves.
 
 ## Phase 2 — export (after Phase 1)
 JSON, JSONL, CSV with filters (department, date range, questionnaire version), de-identified option, stable question ids + descriptions, UTF-8, metadata. CSV must neutralise `=`/`+`/`-`/`@` prefixes (audit L9). Per `docs/ADMIN_EXPORT_REQUIREMENTS.md`. Exports never go to Git.

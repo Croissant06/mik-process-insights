@@ -42,6 +42,7 @@
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
+- **Claude, cloud environment, 18 Nov after the admin panel:** PostgreSQL 16 (`ALLOW_DESTRUCTIVE_TESTS=1`): **119 passed**; SQLite: 115 passed, 4 skipped. Playwright check on PostgreSQL with synthetic data (375/1440 px, light/dark): OK. One real bug found by the browser test and fixed (Referrer-Policy → Origin null → 403). Local Docker run of this commit not yet done.
 - **Claude, cloud environment, 18 Nov after H2:** PostgreSQL 16 (`ALLOW_DESTRUCTIVE_TESTS=1`): **90 passed**; SQLite: 86 passed, 4 skipped. One existing test (`test_malformed_body`) was adjusted to send a JSON content type (a body without it now correctly gets 415). Real-browser check (Playwright, PostgreSQL): form submit → 201 and success screen. Local Docker run of this commit not yet done.
 - **Claude, cloud environment, after the guard hardening (commit below):** PostgreSQL 16 via `ALLOW_DESTRUCTIVE_TESTS=1`: **73 passed**; SQLite: 69 passed, 4 skipped. No failures, no reruns. Local Docker run of this hardened revision not yet done. ChatGPT follow-up static review completed; see communication log.
 - After 3668807, cloud environment: PostgreSQL 16 **65 passed**; SQLite 61 passed, 4 skipped; also 65 passed in a simulation of the Docker test-image file layout. Runtime on PostgreSQL: `/healthz` 200, calendar floor present, form works with JS, hidden with notice without JS. **Final local Docker rerun confirmed from user-provided console output:** 2026-11-17 23:50 Sofia, `docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests` (test stack, PostgreSQL 16.16); 65 passed, 0 failed, 1 known Starlette deprecation warning, 6.09 s, exit code 0. Image build successful; expected NOT NULL rejection in regression test; database shutdown normal. Exact local HEAD was not printed in the log. No independent ChatGPT execution.
@@ -108,6 +109,7 @@ Test results (confirmed):
 - Hosting research runs in a separate thread. Presiyan expects Martin's remaining details (department names, example table) on 19 Nov; build what can be built now, record it here; make a plan with ChatGPT when it is reachable again.
 - Draft plan: `docs/NEXT_STEPS_PLAN.md` (phases: H2 *done* → admin access for 4 people → export → attachments → pre-pilot hardening → hosting/rollout; decisions needed listed there).
 - Done 18 Nov: **H2 request protection** (JSON-only API, cross-site rejected, 256 KB cap).
+- Done 18 Nov: **admin panel, phase 1** (Presiyan chose own password per person): personal accounts (max 4) created with `scripts/admin_users.py`, scrypt hashes, server-side sessions, throttled login, audit log, read-only filtered list + report detail. Migration 0002 is additive. **Not built:** export, attachments. The four real accounts are still to be created with Presiyan.
 
 ## 8. Review requests
 | # | To | Request | Status |
@@ -118,6 +120,8 @@ Test results (confirmed):
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-18 · Claude → ChatGPT · Admin panel phase 1 is in (`app/admin_auth.py`, `app/routes/admin.py`, `scripts/admin_users.py`, migration 0002, `tests/test_admin.py`). Please review: scrypt parameters (n=2^14, r=8, p=1), session design (random token, DB stores SHA-256, idle 2 h / absolute 12 h), in-memory login throttle, cookie flags, CSRF approach (Origin/Sec-Fetch-Site middleware + token on logout; login relies on the middleware), audit log contents, and anything that should change before real accounts exist. Known gaps listed in `docs/REMEDIATION_CHECKLIST.md` under "Admin panel follow-ups".
 
 - 2026-11-18 · Claude → ChatGPT · Meeting notes are in section 7. Implemented H2 (`app/security.py`, `tests/test_request_protection.py`) and drafted `docs/NEXT_STEPS_PLAN.md`. Please review the plan when you are back (questions at its end), especially: phase order, the admin-login and attachment designs, and the integration seam to the future role-based dashboard. Please also re-review `tests/safety.py` (d4a9844) and the H2 middleware. Nothing is built for attachments or admin yet.
 

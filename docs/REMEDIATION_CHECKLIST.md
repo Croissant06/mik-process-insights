@@ -25,6 +25,13 @@ Source: `docs/audit/TECHNICAL_AUDIT_2026-11-17.md`. Rule: **no real employee dat
 - [ ] Exports: aggregate/de-identified by default; pseudonyms are not anonymity; review free text; no external AI sharing without approved governance
 - [x] Pre-merge: form fails closed without JavaScript; destructive-test guard; build-context exclusions tightened; filled materials kept out of Git
 
+## Admin panel follow-ups
+- [ ] Create the four admin accounts (Presiyan, Martin, Росица, Миглена) — with Presiyan
+- [ ] CSRF token on every future state-changing admin form (only logout has one today)
+- [ ] Let admins change their own password; consider a stored (DB) login throttle if more than one worker is ever run
+- [ ] Per-IP rate limit at the proxy; HTTPS + `COOKIE_SECURE=1` before any non-local use
+- [ ] Export (Phase 2 in `docs/NEXT_STEPS_PLAN.md`)
+
 ## P2 — Hardening before pilot (batch B)
 - [x] **H2** (18 Nov) `Content-Type: application/json` required on `/api/*` (415); foreign `Origin`/`Sec-Fetch-Site: cross-site` rejected (403); body cap 256 KB (413). Still open: per-IP rate limit at the proxy, and CSRF tokens once admin cookies exist
 - [ ] **M1** Idempotency key per form fill (UUID as PK, `ON CONFLICT DO NOTHING`)

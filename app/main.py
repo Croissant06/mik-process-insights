@@ -13,7 +13,8 @@ from sqlalchemy import text
 from app import questionnaire
 from app.config import Settings
 from app.db import make_engine, make_session_factory
-from app.routes import api, pages
+from app.admin_auth import LoginThrottle
+from app.routes import admin, api, pages
 from app.security import RequestProtectionMiddleware
 
 APP_DIR = Path(__file__).resolve().parent
@@ -45,6 +46,8 @@ def create_app(settings: Settings | None = None, *, create_tables: bool = False)
     app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
     app.include_router(pages.router)
     app.include_router(api.router)
+    app.include_router(admin.router)
+    app.state.login_throttle = LoginThrottle()
     app.add_middleware(
         RequestProtectionMiddleware,
         allowed_origins=settings.allowed_origins,

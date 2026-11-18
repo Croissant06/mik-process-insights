@@ -17,6 +17,19 @@ Stop with `docker compose down`. **Never add `-v` unless you really want to dele
 
 An older `.env` that still contains `DATABASE_URL=...` keeps working: `DATABASE_URL` wins when set. No volume or schema change is needed.
 
+## Admin panel (read-only)
+
+Open **http://127.0.0.1:8000/admin**. Only people created with the script below can sign in (at most 4 active admins, one personal account each, no shared login). Passwords are typed at a hidden prompt, stored as scrypt hashes, never printed or logged.
+
+```bash
+docker compose exec web python scripts/admin_users.py create --login <login> --name "<display name>"
+docker compose exec web python scripts/admin_users.py list
+docker compose exec web python scripts/admin_users.py set-password --login <login>   # signs the person out everywhere
+docker compose exec web python scripts/admin_users.py deactivate --login <login>
+```
+
+Sessions are stored in PostgreSQL (idle timeout 2 h, absolute 12 h), the cookie is `HttpOnly` + `SameSite=Strict`, five failed logins lock a login/IP for 15 minutes, and every sign-in, list and report view is written to `admin_audit`. Set `COOKIE_SECURE=1` whenever the site is served over HTTPS (it defaults to on outside `APP_ENV=dev`). Reports can be filtered by department, date range and questionnaire version. Export is not built yet. Run `docker compose up --build` after pulling: the first start applies migration `0002` (new tables only, existing data untouched).
+
 ## Database credentials
 
 - Write the password **once**, in `POSTGRES_PASSWORD`. The app builds its connection string from `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (host `db`), and escapes special characters for you.
