@@ -67,10 +67,20 @@ Test results (confirmed):
 
 ## 6. Pending management decisions (with Martin, 18 Nov; **assumptions until answered**)
 - Real department list, participants, employee device access (sewing floor?).
-- Hosting and exposure (confirm the provisional plan).
+- Hosting and exposure: **no internal server** (18 Nov); cheap external options to be compared; re-decide before any real data.
 - Named vs anonymous vs employee code (affects the de-identified export and erasure requests).
 - Backdating limit and floor date; retention period; who may see identifiable data.
 - Privacy notice and legal basis (DPO/lawyer); MES/AI scope.
+
+### Meeting with Martin, 18 Nov 2026 — notes as reported by Presiyan (not yet in writing from management)
+1. Wanted: a button to add files/pictures to a report.
+2. **No internal server** at the company, so hosting must be an external/cheap option (the provisional "company computer or Linux server" plan in section 4 is therefore **superseded in practice**; to be re-decided).
+3. MES/AI modules: needs further clarification from Miglena.
+4. Deployment: compare different cheap solutions.
+5. Orders are tracked in Excel files; data arrives sometimes digitally, sometimes typed directly. They want everything isolated, each person entering/seeing only what they are required to (role-based isolation).
+6. Admin panel access: only Presiyan, Martin, Rosica and Miglena.
+7. Martin will send an example table and the department names shortly, plus Miglena's clarification on the modules.
+**Not built on yet** (waiting for Presiyan's go-ahead and Martin's material). Implications to evaluate before building: file/photo uploads (storage location, size/type limits, malware scanning, personal data in images, backups); external hosting (data-protection/legal review, EU location, HTTPS, access control — the "internal network/VPN only" assumption no longer holds); 4-person admin access (authentication, not shared logins); role-based data isolation.
 
 ## 7. Upcoming tasks and priorities
 0. ~~Merge PR #1~~ done (merged 2026-11-17, 52cb5ef). Final local Docker test run: 65/65 passed.
