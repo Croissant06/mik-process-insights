@@ -14,6 +14,7 @@ from app import questionnaire
 from app.config import Settings
 from app.db import make_engine, make_session_factory
 from app.routes import api, pages
+from app.security import RequestProtectionMiddleware
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -44,6 +45,11 @@ def create_app(settings: Settings | None = None, *, create_tables: bool = False)
     app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
     app.include_router(pages.router)
     app.include_router(api.router)
+    app.add_middleware(
+        RequestProtectionMiddleware,
+        allowed_origins=settings.allowed_origins,
+        max_body_bytes=settings.max_json_body_bytes,
+    )
 
     @app.get("/healthz", include_in_schema=False)
     def healthz(request: Request):

@@ -220,7 +220,7 @@ def test_unknown_questionnaire_version_rejected(client, valid_payload):
 
 
 def test_malformed_body(client):
-    assert client.post("/api/submissions", content=b"not json").status_code == 400
+    assert client.post("/api/submissions", content=b"not json", headers={"content-type": "application/json"}).status_code == 400
     assert post(client, ["x"]).status_code == 422
 
 

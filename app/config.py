@@ -62,6 +62,10 @@ class Settings:
     active_questionnaire_version: int | None = None
     timezone: str = "Europe/Sofia"  # local "work date" zone; DB timestamps are always UTC
     max_backdate_days: int | None = None  # None = any past date (down to EARLIEST_WORK_DATE)
+    # Extra browser origins allowed to POST (e.g. "https://reports.example.com" behind a proxy that rewrites Host).
+    # The request's own Host is always allowed.
+    allowed_origins: tuple[str, ...] = ()
+    max_json_body_bytes: int = 256 * 1024
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -70,4 +74,5 @@ class Settings:
             database_url=database_url_from_env(),
             active_questionnaire_version=int(active) if active else None,
             max_backdate_days=_parse_backdate(os.environ.get("MAX_BACKDATE_DAYS")),
+            allowed_origins=tuple(o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()),
         )

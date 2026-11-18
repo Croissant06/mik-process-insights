@@ -26,7 +26,7 @@ Source: `docs/audit/TECHNICAL_AUDIT_2026-11-17.md`. Rule: **no real employee dat
 - [x] Pre-merge: form fails closed without JavaScript; destructive-test guard; build-context exclusions tightened; filled materials kept out of Git
 
 ## P2 — Hardening before pilot (batch B)
-- [ ] **H2** Require `Content-Type: application/json` (415); reject foreign `Origin`/`Sec-Fetch-Site: cross-site` (403); body size cap (~64 KB); per-IP rate limit at proxy. Also required for admin cookies/CSRF
+- [x] **H2** (18 Nov) `Content-Type: application/json` required on `/api/*` (415); foreign `Origin`/`Sec-Fetch-Site: cross-site` rejected (403); body cap 256 KB (413). Still open: per-IP rate limit at the proxy, and CSRF tokens once admin cookies exist
 - [ ] **M1** Idempotency key per form fill (UUID as PK, `ON CONFLICT DO NOTHING`)
 - [ ] **M3** Logging and exception handler (log error type + request id, never payloads)
 - [ ] **M5** Non-root container user; split prod Compose (no bind mounts, `restart: unless-stopped`) from dev override
