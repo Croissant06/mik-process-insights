@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, String, false as sa_false
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, String, false as sa_false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,6 +35,7 @@ class QuestionnaireVersion(Base):
 
 class Submission(Base):
     __tablename__ = "submissions"
+    __table_args__ = (Index("uq_submissions_idempotency_key", "idempotency_key", unique=True),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     questionnaire_version: Mapped[int] = mapped_column(
@@ -47,6 +48,9 @@ class Submission(Base):
     respondent_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     department_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     answers: Mapped[dict] = mapped_column(JsonType, nullable=False)
+    # One key per form fill: a retry with the same key and content never creates a second report.
+    idempotency_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ReportAttachment(Base):

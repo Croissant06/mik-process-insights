@@ -7,13 +7,16 @@
   const DAY = 864e5;
 
   const pad = (n) => String(n).padStart(2, "0");
+  // utc(y, ...) treats years 0-99 as 1900-1999; setUTCFullYear does not, so every valid year (1 to today) works.
+  const utc = (y, m, d) => { const x = new Date(0); x.setUTCFullYear(y, m, d); return x.getTime(); };
   const parse = (iso) => { const [y, m, d] = iso.split("-").map(Number); return { y, m, d }; };
-  const iso = (o) => `${o.y}-${pad(o.m)}-${pad(o.d)}`;
-  const fmt = (o) => `${pad(o.d)}.${pad(o.m)}.${o.y}`;
-  const ts = (o) => Date.UTC(o.y, o.m - 1, o.d);
+  const year4 = (y) => String(y).padStart(4, "0");
+  const iso = (o) => `${year4(o.y)}-${pad(o.m)}-${pad(o.d)}`;
+  const fmt = (o) => `${pad(o.d)}.${pad(o.m)}.${year4(o.y)}`;
+  const ts = (o) => utc(o.y, o.m - 1, o.d);
   const fromTs = (t) => { const x = new Date(t); return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() }; };
   const addDays = (o, n) => fromTs(ts(o) + n * DAY);
-  const daysIn = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const daysIn = (y, m) => new Date(utc(y, m, 0)).getUTCDate();
   const mondayIndex = (o) => (new Date(ts(o)).getUTCDay() + 6) % 7;
   const monthKey = (o) => o.y * 12 + o.m;
 
@@ -48,7 +51,7 @@
         yearCtl = `<select class="datepicker__sel" aria-label="Година">${years}</select>`;
       } else {
         // no earliest date: a 4-digit year field instead of a (very long) list
-        yearCtl = `<input class="datepicker__sel datepicker__year" type="number" inputmode="numeric" min="1000" max="${today.y}" step="1" aria-label="Година">`;
+        yearCtl = `<input class="datepicker__sel datepicker__year" type="number" inputmode="numeric" min="1" max="${today.y}" step="1" aria-label="Година">`;
       }
       title.innerHTML =
         `<select class="datepicker__sel" aria-label="Месец">${MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("")}</select>` + yearCtl;
@@ -56,15 +59,18 @@
       yearSel = title.querySelector(min ? "select:last-of-type" : "input");
       const jump = () => {
         const yr = Number(yearSel.value);
-        if (!min && !(Number.isInteger(yr) && yr >= 1000 && yr <= today.y)) { yearSel.value = view.y; return; }
+        if (!min && !(Number.isInteger(yr) && yr >= 1 && yr <= today.y)) { yearSel.value = view.y; return; }
         let v = { y: yr, m: Number(monSel.value), d: 1 };
         if (min && monthKey(v) < monthKey(min)) v = { y: min.y, m: min.m, d: 1 };
         if (monthKey(v) > monthKey(today)) v = { y: today.y, m: today.m, d: 1 };
+        if (v.y === view.y && v.m === view.m) return; // nothing to do: re-rendering here would swallow a tap on a day
         view = v;
         render();
       };
       monSel.addEventListener("change", jump);
       yearSel.addEventListener("change", jump);
+      // typing a year navigates immediately, so the later blur/"change" is a no-op and the first tap on a day is not lost
+      if (!min) yearSel.addEventListener("input", jump);
     }
 
     function render() {
@@ -76,9 +82,9 @@
           o.disabled = (min && k < monthKey(min)) || k > monthKey(today);
         });
       } else {
-        title.textContent = `${MONTHS[view.m - 1]} ${view.y}`;
+        title.textContent = `${MONTHS[view.m - 1]} ${year4(view.y)}`;
       }
-      prevBtn.disabled = !!min && monthKey(view) <= monthKey(min) || (!min && view.y <= 1000 && view.m <= 1);
+      prevBtn.disabled = !!min && monthKey(view) <= monthKey(min) || (!min && view.y <= 1 && view.m <= 1);
       nextBtn.disabled = monthKey(view) >= monthKey(today);
       // roving tabindex target: focus date if visible, else selected, else first selectable day
       let target = monthKey(focus) === monthKey(view) && inRange(focus) ? focus : null;
@@ -102,7 +108,7 @@
         const isSel = ts(o) === ts(selected);
         const isToday = ts(o) === ts(today);
         const cls = "datepicker__day" + (isSel ? " is-selected" : "") + (isToday ? " is-today" : "");
-        const label = `${d} ${MONTHS[view.m - 1].toLowerCase()} ${view.y}${isToday ? ", днес" : ""}`;
+        const label = `${d} ${MONTHS[view.m - 1].toLowerCase()} ${year4(view.y)}${isToday ? ", днес" : ""}`;
         cells.push(
           `<button type="button" role="gridcell" class="${cls}" data-iso="${iso(o)}" aria-label="${label}"` +
           `${isSel ? ' aria-selected="true"' : ""}${isToday ? ' aria-current="date"' : ""}` +
@@ -161,7 +167,7 @@
     [prevBtn, nextBtn].forEach((btn) =>
       btn.addEventListener("click", () => {
         const delta = Number(btn.dataset.nav);
-        const t = new Date(Date.UTC(view.y, view.m - 1 + delta, 1));
+        const t = new Date(utc(view.y, view.m - 1 + delta, 1));
         view = { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: 1 };
         render();
       })
@@ -182,8 +188,8 @@
         ArrowLeft: () => addDays(o, -1), ArrowRight: () => addDays(o, 1),
         ArrowUp: () => addDays(o, -7), ArrowDown: () => addDays(o, 7),
         Home: () => addDays(o, -mondayIndex(o)), End: () => addDays(o, 6 - mondayIndex(o)),
-        PageUp: () => fromTs(Date.UTC(o.y, o.m - 2, Math.min(o.d, daysIn(o.y, o.m - 1 || 12)))),
-        PageDown: () => fromTs(Date.UTC(o.y, o.m, Math.min(o.d, daysIn(o.y, o.m + 1)))),
+        PageUp: () => fromTs(utc(o.y, o.m - 2, Math.min(o.d, daysIn(o.y, o.m - 1 || 12)))),
+        PageDown: () => fromTs(utc(o.y, o.m, Math.min(o.d, daysIn(o.y, o.m + 1)))),
       }[e.key];
       if (step) { e.preventDefault(); moveFocus(step()); }
     });

@@ -11,6 +11,10 @@
   const fileInput = document.getElementById("attachments");
   const maxFileBytes = 5 * 1024 * 1024;
   const maxFiles = 10;
+  // One idempotency key per fill: a retry of the same content reuses it (server stores one report); any edit gets a new one.
+  const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16)));
+  let fillKey = newKey();
+  let lastSent = "";
 
   const errEl = (key) => document.getElementById("err-" + key.replace(".", "-"));
   const controlOf = (key) => {
@@ -142,17 +146,20 @@
         showErrors({ attachments: "Изберете до 10 файла по 5 MB. Празни файлове не се приемат." });
         return;
       }
+      const fingerprint = JSON.stringify([payload, files.map((f) => [f.name, f.size, f.lastModified])]);
+      if (fingerprint !== lastSent) { fillKey = newKey(); lastSent = fingerprint; }
       if (files.length) {
         payload.attachments = [];
         for (const file of files) payload.attachments.push(await readFile(file)); // one at a time: gentler on phones
       }
+      payload.idempotency_key = fillKey;
       const endpoint = files.length ? "/api/submissions/with-attachments" : "/api/submissions";
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (res.status === 201) {
+      if (res.status === 201 || res.status === 200) {
         const label = document.querySelector(".datepicker__value").textContent;
         document.getElementById("success-text").textContent =
           "Дневният отчет" + (label ? " за " + label : "") + " е изпратен успешно.";
@@ -161,7 +168,7 @@
         successView.classList.add("view-in");
         window.scrollTo({ top: 0 });
         successView.querySelector("h2").focus({ preventScroll: true });
-      } else if ([400, 413, 422, 503].includes(res.status)) {
+      } else if ([400, 409, 413, 422, 503].includes(res.status)) {
         const contentType = res.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           showErrors((await res.json()).errors || {});
@@ -181,6 +188,8 @@
   });
 
   document.getElementById("another").addEventListener("click", () => {
+    fillKey = newKey();
+    lastSent = "";
     form.reset();
     form.querySelectorAll("[data-text-for]").forEach((w) => (w.hidden = true));
     clearAll();

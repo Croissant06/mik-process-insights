@@ -25,6 +25,18 @@ def _parse_backdate(raw: str | None) -> int | None:
     return max(0, int(raw))
 
 
+def _parse_retention(raw: str | None) -> int:
+    if raw is None or raw.strip() == "":
+        return 90
+    try:
+        days = int(raw)
+    except ValueError:
+        raise ConfigError("RETENTION_DAYS must be a whole number of days.") from None
+    if days < 7:
+        raise ConfigError("RETENTION_DAYS must be at least 7.")
+    return days
+
+
 def _parse_bool(raw: str | None, *, default: bool) -> bool:
     if raw is None or raw.strip() == "":
         return default
@@ -81,6 +93,9 @@ class Settings:
     public_origin: str | None = None
     attachment_scan_host: str | None = None
     attachment_scan_port: int = 3310
+    # PROVISIONAL pilot retention (days from submission) for named reports and their attachments. Only used by the
+    # owner-run review script scripts/retention_review.py; nothing is ever deleted automatically.
+    retention_days: int = 90
 
     def __post_init__(self):
         if self.environment not in HOSTED_ENVS:
@@ -118,6 +133,7 @@ class Settings:
             public_origin=os.environ.get("PUBLIC_ORIGIN", "").strip().rstrip("/") or None,
             attachment_scan_host=os.environ.get("ATTACHMENT_SCAN_HOST", "").strip() or None,
             attachment_scan_port=int(os.environ.get("ATTACHMENT_SCAN_PORT", "3310")),
+            retention_days=_parse_retention(os.environ.get("RETENTION_DAYS")),
         )
         if web and environment not in DEV_ENVS:
             # Anything that is not local development is treated as real use: HTTPS only, exact trusted origins.

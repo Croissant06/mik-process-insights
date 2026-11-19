@@ -1,5 +1,7 @@
 # Company server deployment
 
+> Short checklist for the administrator: `docs/HOST_HANDOFF.md`. Provisional retention: 90 days from submission, no automatic deletion (`scripts/retention_review.py`).
+
 ## Server call checklist
 
 - Confirm a Linux host with Docker Engine and Compose v2, the person who can operate them, and how the host can pull the private repository and container images.

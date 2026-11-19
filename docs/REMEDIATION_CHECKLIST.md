@@ -1,58 +1,40 @@
-# Remediation checklist — remaining audit findings
+# Remediation checklist — pre-pilot status (reconciled 19 Nov 2026 on `review/hosted-pilot`)
 
-Source: `docs/audit/TECHNICAL_AUDIT_2026-11-17.md`. Rule: **no real employee data until batches B, C and D are done.** Nothing is deployed publicly.
+Source: `docs/audit/TECHNICAL_AUDIT_2026-11-17.md` plus the ChatGPT reviews in `docs/AI_HANDOFF.md`. Rule: **no real employee data until every open "owner" item below is closed.** Evidence references the test runs logged in `docs/AI_HANDOFF.md` section 3. Synthetic data only so far.
 
-## Done (batch A)
-- [x] H1 PostgreSQL limits vs questionnaire config
-- [x] H3 Malformed Unicode → 422
-- [x] H4 No silent SQLite; DB-aware `/healthz`
-- [x] H5 Locked, hash-pinned dependencies
-- [x] M6 Database credential configuration and docs
-- [x] T1/T2 PostgreSQL integration + regression tests
+Legend: `[x]` done with evidence · `[ ]` open · **(owner)** = needs a person or the company, not repository code.
 
-## P1 — Decisions and non-code blockers (batch D, before any real data)
-- [ ] **C1** Privacy notice, legal basis, retention period; confirm with DPO/lawyer (draft: `docs/business/EMPLOYEE_NOTICE_BG.md`); render a short notice link on the form
-- [ ] **C2** Exposure decision: internal network/VPN only, never public (provisional plan recorded in DECISIONS; confirm with Martin); record that names are self-declared until auth exists
-- [ ] **M11** Named vs anonymous vs employee code/list — decide before collection; affects the de-identified export and erasure requests
-- [ ] **M2** Backdating policy and floor date (audit suggests `MAX_BACKDATE_DAYS=7`, floor = pilot start); management decision
-- [ ] Real department list, participants, device access (questions for Martin)
+## Done — audit batch A
+- [x] H1 PostgreSQL limits vs questionnaire config · H3 malformed Unicode → 422 · H4 no silent SQLite, DB-aware `/healthz` · H5 locked, hash-pinned dependencies · M6 DB credential configuration · T1/T2 PostgreSQL integration and regression tests
 
-## Added from the ChatGPT review (pre-pilot)
-- [ ] Production must require PostgreSQL even if an explicit SQLite `DATABASE_URL` is supplied (e.g. `APP_ENV=production` rejects `sqlite:`)
-- [ ] Fail closed for a draft/placeholder questionnaire in production; reject unapproved versions (needs an `approved` flag in the YAML)
-- [ ] M1 detail: same idempotency key + different payload must not silently succeed (409)
-- [ ] Do not treat LAN membership or self-declared names as verified identity
-- [ ] Exports: aggregate/de-identified by default; pseudonyms are not anonymity; review free text; no external AI sharing without approved governance
-- [x] Pre-merge: form fails closed without JavaScript; destructive-test guard; build-context exclusions tightened; filled materials kept out of Git
+## Done — request, session and app hardening
+- [x] **H2** JSON-only `/api/*` (415), cross-site browser requests refused (403), body caps: 256 KiB API, 4 KiB admin forms, ~67 MiB only on the upload route (413). Evidence: `tests/test_request_protection.py`, hosted smoke (cross-site Origin 403, other port 403, exact origin accepted)
+- [x] **M1 Idempotency** (both routes): form sends one key per fill; same key + same content → one report (200, `duplicate: true`, no second virus scan); same key + changed content → 409; malformed key → 422; parallel retry resolved by the unique key. Migration 0005. Evidence: `tests/test_idempotency.py`, browser smoke (200 and 409). *Reports sent without a key (direct API calls) are not de-duplicated; the form always sends one.*
+- [x] **M3 Sanitized errors**: unexpected exceptions return a generic 500 with a request id; the log line has request id, method, path (no query string), exception type and source line only — never the message, headers, cookies, bodies or answers; uvicorn access log is off in the hosted stack. Evidence: `tests/test_headers_and_errors.py`
+- [x] **M9 Security headers**: CSP (own scripts + SHA-256 of the one inline theme script, no `unsafe-inline` for scripts, `frame-ancestors 'none'`, `object-src 'none'`), nosniff, frame deny, `Referrer-Policy: same-origin`, Permissions-Policy, COOP, HSTS when cookies are Secure; `/docs` and `/openapi.json` are off. Evidence: same test file, real-browser run with no console/CSP errors
+- [x] **M5 Non-root runtime image** (`USER mik`); hosted Compose publishes only a loopback web port, no DB or scanner port, `restart: unless-stopped`, one worker. **M7 Least-privilege DB role**: app role cannot delete reports or audit rows, cannot create objects, timezone UTC (checked in the hosted stack, `has_table_privilege`)
+- [x] **M12** one worker + migrations in a separate `migrate` service before the web service starts
+- [x] Production requires PostgreSQL, HTTPS cookies, exact HTTPS origin; refuses draft/placeholder questionnaires (`tests/test_hosted.py`, `tests/test_config.py`)
+- [x] Admin: personal accounts, scrypt 2^17 with re-hash, DB sessions, login CSRF token, throttle with bounded memory, audit log without secrets; all four admins view full reports; **CSV only for accounts with `can_export_csv`** (server-enforced, tested for four accounts); PDF/Excel for all four; **L9** formula injection neutralised in Excel and CSV
+- [x] Attachments: optional, ≤10 files × 5 MiB, any format, ClamAV INSTREAM scan before saving (test virus file rejected; scanner down → 503 and nothing saved), admin-only audited download, atomic with the report
+- [x] Employee form: required name + department, no sign-in, any valid past date (years 1 to today, picker and server aligned), future refused. Approved questionnaire = v3, draft v2 kept
+- [x] **M8 (sandbox part)** `pg_dump -Fc` / `pg_restore --exit-on-error` into a fresh database restored reports, attachments (sizes) and migration version
+- [x] **T3** real-browser smoke: `scripts/browser_smoke.js`; **T4** edge cases for dates and keys in the test suite
+- [x] Pre-merge safeguards from the first review (no-JS fail-closed form, destructive-test guard, build-context exclusions)
+- [x] **Retention (provisional)**: 90 calendar days from `submitted_at`, `RETENTION_DAYS` configurable, **no automatic deletion**; owner-run `scripts/retention_review.py` is a dry run by default, deletion needs `--delete --i-am-the-operator` and `RETENTION_DELETION_APPROVED=1` and the owner DB role (`tests/test_retention.py`)
 
-## Admin panel follow-ups
-- [ ] Create the four admin accounts (Presiyan, Martin, Росица, Миглена) — with Presiyan
-- [x] (19 Nov) Login form has a double-submit CSRF token; logout has a session token. Every future state-changing admin form must carry one.
-- [x] (19 Nov) scrypt n=2^17 (OWASP), re-hash on login; production start refuses non-HTTPS cookies / missing exact `ALLOWED_ORIGINS`; admin forms 4 KB; throttle memory bounded; audit noise limited (purge with `scripts/purge_audit_noise.py` as the DB owner)
-- [ ] Confirm with Presiyan/Martin whether all four admins may see all report detail (names included) before real data
-- [ ] Let admins change their own password; consider a stored (DB) login throttle if more than one worker is ever run
-- [ ] Per-IP rate limit at the proxy; HTTPS + `COOKIE_SECURE=1` before any non-local use
-- [ ] Export (Phase 2 in `docs/NEXT_STEPS_PLAN.md`)
+## Open — owners
+- [ ] **(data owner)** Confirm the retention period and who approves the first deletion run; **(company)** how exports and backup copies expire
+- [ ] **(DPO / legal)** Employee notice wording, legal basis, controller, access, rights. Draft with the settled facts: `docs/business/EMPLOYEE_NOTICE_BG.md`. Form link is a placeholder until the host exists; do not publish before approval
+- [ ] **(Presiyan)** Create the four admin accounts on the target host (`--csv` for Пресиян and Мартин only); distribute credentials through an approved channel
+- [ ] **(server administrator)** Host, private HTTPS hostname, proxy (body limit ≥ 67 MiB on `/api/submissions/with-attachments` only, rate limits on sign-in and uploads, overwrite forwarding headers), ≥ 4 GiB free RAM, employee device access, VPN/IP restriction. Checklist: `docs/HOST_HANDOFF.md`
+- [ ] **(server administrator)** ClamAV signature updates (the image ships signatures but the sandbox could not update them); off-host backups with a tested restore on the company schedule
+- [ ] **(management)** Written confirmation of the questionnaire/participant approval (so far reported by Presiyan); MES/AI scope
+- [ ] **(Presiyan/ChatGPT)** Day-one scope for a reviewed, de-identified export (pseudonyms are not anonymity; review free text; no external AI sharing without governance)
 
-## P2 — Hardening before pilot (batch B)
-- [x] **H2** (18 Nov) `Content-Type: application/json` required on `/api/*` (415); foreign `Origin`/`Sec-Fetch-Site: cross-site` rejected (403); body cap 256 KB (413). Still open: per-IP rate limit at the proxy, and CSRF tokens once admin cookies exist
-- [ ] **M1** Idempotency key per form fill (UUID as PK, `ON CONFLICT DO NOTHING`)
-- [ ] **M3** Logging and exception handler (log error type + request id, never payloads)
-- [ ] **M5** Non-root container user; split prod Compose (no bind mounts, `restart: unless-stopped`) from dev override
-- [ ] **M7** Least-privilege DB role for the app; migrations with the owner role
-- [ ] **M9** Security headers (CSP with hash for the inline theme script), `openapi_url=None`
-- [ ] **M10** Accessibility: focus/announce success, one live error region, `aria-invalid`, conditional `aria-required`; test on real devices and Safari/Firefox
-- [ ] **M12** Run questionnaire sync once after migrations or use `ON CONFLICT DO NOTHING` (needed if more than one worker)
-- [ ] **L10** Mention/handle uvicorn access logs (IP, path) in the privacy notice or retention plan
-
-## P3 — Operations (batch C)
-- [ ] **M8** Nightly `pg_dump -Fc` to a gitignored, off-host location with retention, plus a **tested restore**
-- [ ] Hosting setup on the chosen machine: HTTPS on the internal network, VPN access for admin, host updates
-
-## P4 — With the admin/auth/export work (Wed/Thu)
-- [ ] **M4** Do not copy the async-route-with-sync-DB pattern into admin pages
-- [ ] **L9** Neutralise `=`, `+`, `-`, `@` prefixes on CSV export only
-- [ ] **T3** End-to-end browser tests; **T4** edge-case tests (L1–L3 inputs)
-
-## P5 — Low priority
-- [ ] L1 strict ISO date · L2 reject `true` as version · L3 strip zero-width/RTL characters · L4 limit accepted old versions · L5 stale "today" on long-open tab · L6 version key per questionnaire code · L7 `server_default=now()` · L8 seed script uses Sofia date
+## Open — repository work, lower priority
+- [ ] **M10** Accessibility pass (focus/announce success, one live error region, `aria-invalid`), real devices, Safari and Firefox
+- [ ] Admins change their own password; stored (DB) login throttle if more than one worker is ever run
+- [ ] **L10** Mention uvicorn access logs (IP, path) in the notice if the proxy or app logs them
+- [ ] Per-IP rate limit at the proxy (owner item above) · L1–L8 low-priority items from the audit (strict ISO date, `true` as version, zero-width/RTL characters, old versions, stale "today" on a long-open tab, version key per code, `server_default=now()`, seed script)
+- [ ] Not verified anywhere yet: Safari/Firefox/real phones, 50 MiB uploads over a slow mobile link, the company's real proxy and host
