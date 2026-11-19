@@ -8,6 +8,8 @@
   const submitLabel = document.getElementById("submit-label");
   const banner = document.getElementById("form-error");
   const LABEL = submitLabel.textContent;
+  const fileInput = document.getElementById("attachments");
+  const maxFileBytes = 5 * 1024 * 1024;
 
   const errEl = (key) => document.getElementById("err-" + key.replace(".", "-"));
   const controlOf = (key) => {
@@ -117,6 +119,16 @@
     submitLabel.textContent = on ? "Изпращане..." : LABEL;
   }
 
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, data: reader.result.split(",", 2)[1] });
+      reader.onerror = reject;
+      reader.onabort = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (submitBtn.disabled) return;
@@ -124,7 +136,14 @@
     setLoading(true);
     const payload = collect();
     try {
-      const res = await fetch("/api/submissions", {
+      const files = fileInput ? [...fileInput.files] : [];
+      if (files.length > 3 || files.some((file) => file.size === 0 || file.size > maxFileBytes)) {
+        showErrors({ attachments: "Изберете до 3 файла по 5 MB. Празни файлове не се приемат." });
+        return;
+      }
+      if (files.length) payload.attachments = await Promise.all(files.map(readFile));
+      const endpoint = files.length ? "/api/submissions/with-attachments" : "/api/submissions";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -137,8 +156,16 @@
         successView.hidden = false;
         successView.classList.add("view-in");
         window.scrollTo({ top: 0 });
-      } else if (res.status === 422 || res.status === 400) {
-        showErrors((await res.json()).errors || {});
+        successView.querySelector("h2").focus({ preventScroll: true });
+      } else if ([400, 413, 422, 503].includes(res.status)) {
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          showErrors((await res.json()).errors || {});
+        } else if (res.status === 413) {
+          showErrors({ _form: "Общият размер на файловете е твърде голям." });
+        } else {
+          throw new Error("server");
+        }
       } else {
         throw new Error("server");
       }

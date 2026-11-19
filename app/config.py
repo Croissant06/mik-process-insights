@@ -4,11 +4,14 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from sqlalchemy.engine import URL
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import ArgumentError
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEV_ENVS = {"dev", "development", "test"}
+HOSTED_ENVS = {"staging", "production"}
 
 
 class ConfigError(RuntimeError):
@@ -74,25 +77,56 @@ class Settings:
     max_json_body_bytes: int = 256 * 1024
     # Admin session cookie "Secure" flag. Must be true whenever the site is served over HTTPS.
     cookie_secure: bool = False
+    environment: str = "development"
+    public_origin: str | None = None
+    attachment_scan_host: str | None = None
+    attachment_scan_port: int = 3310
+
+    def __post_init__(self):
+        if self.environment not in HOSTED_ENVS:
+            return
+        try:
+            backend = make_url(self.database_url).get_backend_name()
+        except ArgumentError:
+            raise ConfigError("Hosted mode needs a valid PostgreSQL database URL.") from None
+        if backend != "postgresql":
+            raise ConfigError("Hosted mode requires PostgreSQL.")
+        if not self.cookie_secure:
+            raise ConfigError("Hosted mode requires COOKIE_SECURE=1 and HTTPS.")
+        try:
+            origin = urlsplit(self.public_origin or "")
+            origin.port  # Validate an explicitly configured port.
+        except ValueError:
+            raise ConfigError("Set PUBLIC_ORIGIN to the application's HTTPS origin.") from None
+        if (origin.scheme != "https" or not origin.hostname or origin.username is not None
+                or origin.path or origin.query or origin.fragment
+                or any(char.isspace() for char in self.public_origin or "")):
+            raise ConfigError("Set PUBLIC_ORIGIN to the application's HTTPS origin.")
 
     @classmethod
     def from_env(cls, *, web: bool = True) -> "Settings":
         """`web=False` is for command-line scripts, which do not serve requests (no origin/cookie checks)."""
         active = os.environ.get("ACTIVE_QUESTIONNAIRE_VERSION")
+        environment = os.environ.get("APP_ENV", "").strip().lower()
         settings = cls(
             database_url=database_url_from_env(),
             active_questionnaire_version=int(active) if active else None,
             max_backdate_days=_parse_backdate(os.environ.get("MAX_BACKDATE_DAYS")),
-            cookie_secure=_parse_bool(os.environ.get("COOKIE_SECURE"), default=os.environ.get("APP_ENV", "").strip().lower() not in DEV_ENVS),
+            cookie_secure=_parse_bool(os.environ.get("COOKIE_SECURE"), default=environment not in DEV_ENVS),
             allowed_origins=tuple(o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()),
+            environment=environment,
+            public_origin=os.environ.get("PUBLIC_ORIGIN", "").strip().rstrip("/") or None,
+            attachment_scan_host=os.environ.get("ATTACHMENT_SCAN_HOST", "").strip() or None,
+            attachment_scan_port=int(os.environ.get("ATTACHMENT_SCAN_PORT", "3310")),
         )
-        if web and os.environ.get("APP_ENV", "").strip().lower() not in DEV_ENVS:
+        if web and environment not in DEV_ENVS:
             # Anything that is not local development is treated as real use: HTTPS only, exact trusted origins.
             if not settings.cookie_secure:
                 raise ConfigError("COOKIE_SECURE must not be disabled outside APP_ENV=dev: admin sessions need HTTPS.")
-            if not settings.allowed_origins or any(not o.lower().startswith("https://") for o in settings.allowed_origins):
+            origins = (*settings.allowed_origins, *([settings.public_origin] if settings.public_origin else []))
+            if not origins or any(not o.lower().startswith("https://") for o in origins):
                 raise ConfigError(
-                    "Outside APP_ENV=dev, ALLOWED_ORIGINS must list the exact public https:// origin(s), "
-                    "e.g. ALLOWED_ORIGINS=https://reports.example.com"
+                    "Outside APP_ENV=dev, PUBLIC_ORIGIN (or ALLOWED_ORIGINS) must give the exact public https:// origin, "
+                    "e.g. PUBLIC_ORIGIN=https://reports.example.com"
                 )
         return settings

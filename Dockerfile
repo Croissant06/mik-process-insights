@@ -23,5 +23,7 @@ CMD ["python", "-m", "pytest", "-q"]
 
 # Runtime image (last stage = default target)
 FROM base AS runtime
+RUN groupadd --system mik && useradd --system --gid mik --no-create-home mik
+USER mik
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"]

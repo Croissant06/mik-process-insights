@@ -13,20 +13,32 @@ def _env(monkeypatch, **env):
         monkeypatch.setenv(k, v)
 
 
-def test_production_needs_exact_https_origins(monkeypatch):
+def test_hosted_needs_exact_https_public_origin(monkeypatch):
     _env(monkeypatch, APP_ENV="production")
-    with pytest.raises(ConfigError, match="ALLOWED_ORIGINS"):
+    with pytest.raises(ConfigError, match="PUBLIC_ORIGIN"):
         Settings.from_env()
-    _env(monkeypatch, APP_ENV="production", ALLOWED_ORIGINS="http://reports.example.com")
+    _env(monkeypatch, APP_ENV="production", PUBLIC_ORIGIN="http://reports.example.com")
+    with pytest.raises(ConfigError, match="PUBLIC_ORIGIN"):
+        Settings.from_env()
+    _env(monkeypatch, APP_ENV="production", PUBLIC_ORIGIN="https://reports.example.com/",
+         ATTACHMENT_SCAN_HOST="scanner")
+    s = Settings.from_env()
+    assert s.cookie_secure and s.public_origin == "https://reports.example.com"
+
+
+def test_other_non_dev_envs_need_https_origins(monkeypatch):
+    _env(monkeypatch, APP_ENV="preview")
+    with pytest.raises(ConfigError, match="PUBLIC_ORIGIN"):
+        Settings.from_env()
+    _env(monkeypatch, APP_ENV="preview", ALLOWED_ORIGINS="http://x.example.com")
     with pytest.raises(ConfigError, match="https"):
         Settings.from_env()
-    _env(monkeypatch, APP_ENV="production", ALLOWED_ORIGINS="https://reports.example.com/")
-    s = Settings.from_env()
-    assert s.cookie_secure and s.allowed_origins == ("https://reports.example.com",)
+    _env(monkeypatch, APP_ENV="preview", ALLOWED_ORIGINS="https://x.example.com")
+    assert Settings.from_env().allowed_origins == ("https://x.example.com",)
 
 
 def test_production_refuses_insecure_cookies(monkeypatch):
-    _env(monkeypatch, APP_ENV="production", COOKIE_SECURE="0", ALLOWED_ORIGINS="https://reports.example.com")
+    _env(monkeypatch, APP_ENV="production", COOKIE_SECURE="0", PUBLIC_ORIGIN="https://reports.example.com")
     with pytest.raises(ConfigError, match="COOKIE_SECURE"):
         Settings.from_env()
 
