@@ -6,7 +6,7 @@ Short version of `docs/HOSTED_DEPLOYMENT.md`. Everything here was verified with 
 | Item | Requirement |
 |---|---|
 | Server | Linux, Docker Engine + Compose v2, **≥ 4 GiB free RAM** (ClamAV alone wants 3–4 GiB), disk for PostgreSQL (reports **and** files are stored in the database) and the ClamAV signature volume |
-| Name and certificate | A private HTTPS hostname with a trusted certificate, reachable from the office network or company VPN only. The app runs at the root path |
+| Name and certificate | A private HTTPS hostname with a trusted certificate, reachable from the office network or company VPN only. Suggested hostname `insights.mikltd.eu`, pending confirmation by company IT. The app runs at the root path. |
 | Reverse proxy | Forward to `127.0.0.1:<MIK_BIND_PORT>` keeping the original `Host`, set the forwarded scheme to `https`, **overwrite** inbound `X-Forwarded-*`. Allow request bodies of **≥ 67 MiB (72 recommended) only on `POST /api/submissions/with-attachments`**; keep every other path small. Rate-limit `/admin/login` and the upload route |
 | Trusted proxy address | Set `MIK_TRUSTED_PROXY_IPS` to the peer address the app sees from the proxy (check on the host; often the Docker bridge gateway) |
 | Secrets | Two different strong database passwords in `.env.hosted` (mode 600, outside Git) |
