@@ -13,6 +13,7 @@ def main():
 
     with psycopg.connect(
         host=os.environ["POSTGRES_HOST"],
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
         dbname=os.environ["POSTGRES_DB"],
         user=os.environ["POSTGRES_USER"],
         password=owner_password,
@@ -21,6 +22,7 @@ def main():
         if not exists:
             db.execute("CREATE ROLE mik_app LOGIN")
         db.execute(sql.SQL("ALTER ROLE mik_app PASSWORD {}").format(sql.Literal(password)))
+        db.execute("ALTER ROLE mik_app SET timezone TO 'UTC'")
         db.execute("GRANT USAGE ON SCHEMA public TO mik_app")
         db.execute("GRANT SELECT, INSERT ON questionnaire_versions, submissions, report_attachments TO mik_app")
         db.execute("GRANT SELECT, INSERT, UPDATE ON admin_users TO mik_app")

@@ -4,7 +4,7 @@
 
 - Confirm a Linux host with Docker Engine and Compose v2, the person who can operate them, and how the host can pull the private repository and container images.
 - Confirm a private HTTPS hostname and trusted certificate, access over the office network or company VPN, and whether the existing proxy can send requests to a loopback port on the same host. The app uses a hostname at the root path.
-- Confirm available RAM and persistent disk space for PostgreSQL and ClamAV. Agree how the scanner receives signature updates and how the proxy will rate-limit sign-in and uploads.
+- Confirm available RAM and persistent disk space for PostgreSQL and ClamAV. ClamAV recommends 3 GiB minimum and 4 GiB preferred for its container alone. Agree how the scanner receives signature updates and how the proxy will rate-limit sign-in and uploads. [ClamAV Docker requirements](https://docs.clamav.net/manual/Installing/Docker.html#memory-ram-requirements)
 - Agree who owns PostgreSQL backups, off-host storage, and restore checks. Reports and file bytes are in the same database and backup.
 - Agree whether employee devices can reach the private hostname. Confirm how the four admins will get their personal credentials through an approved channel.
 

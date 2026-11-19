@@ -18,6 +18,7 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    command: ["postgres", "-c", "timezone=UTC"]
     environment:
       POSTGRES_USER: mik_owner
       POSTGRES_PASSWORD: ${MIK_DB_OWNER_PASSWORD:?set a database owner password}
