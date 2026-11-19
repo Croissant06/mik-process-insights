@@ -28,7 +28,7 @@ docker compose exec web python scripts/admin_users.py set-password --login <logi
 docker compose exec web python scripts/admin_users.py deactivate --login <login>
 ```
 
-Sessions are stored in PostgreSQL (idle timeout 2 h, absolute 12 h), the cookie is `HttpOnly` + `SameSite=Strict`, five failed logins lock a login/IP for 15 minutes, and every sign-in, list and report view is written to `admin_audit`. Set `COOKIE_SECURE=1` whenever the site is served over HTTPS (it defaults to on outside `APP_ENV=dev`). Reports can be filtered by department, date range and questionnaire version. Export is not built yet. Run `docker compose up --build` after pulling: the first start applies migration `0002` (new tables only, existing data untouched).
+Sessions are stored in PostgreSQL (idle timeout 2 h, absolute 12 h), the cookie is `HttpOnly` + `SameSite=Strict`, five failed logins lock a login/IP for 15 minutes, and every sign-in, list and report view is written to `admin_audit`. Set `COOKIE_SECURE=1` whenever the site is served over HTTPS (it defaults to on outside `APP_ENV=dev`, where the app also refuses to start without `ALLOWED_ORIGINS=https://...` and with `COOKIE_SECURE=0`). Passwords use scrypt n=2^17 (128 MiB, ~0.4 s); older hashes are upgraded at the next sign-in. Reports can be filtered by department, date range and questionnaire version. Export is not built yet. Run `docker compose up --build` after pulling: the first start applies migration `0002` (new tables only, existing data untouched).
 
 ## Database credentials
 

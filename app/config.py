@@ -68,20 +68,31 @@ class Settings:
     active_questionnaire_version: int | None = None
     timezone: str = "Europe/Sofia"  # local "work date" zone; DB timestamps are always UTC
     max_backdate_days: int | None = None  # None = any past date (down to EARLIEST_WORK_DATE)
-    # Extra browser origins allowed to POST (e.g. "https://reports.example.com" behind a proxy that rewrites Host).
-    # The request's own Host is always allowed.
+    # Exact browser origins allowed to POST (e.g. "https://reports.example.com"). When set, ONLY these are accepted;
+    # when empty (local development) the request's own Host is accepted.
     allowed_origins: tuple[str, ...] = ()
     max_json_body_bytes: int = 256 * 1024
     # Admin session cookie "Secure" flag. Must be true whenever the site is served over HTTPS.
     cookie_secure: bool = False
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls, *, web: bool = True) -> "Settings":
+        """`web=False` is for command-line scripts, which do not serve requests (no origin/cookie checks)."""
         active = os.environ.get("ACTIVE_QUESTIONNAIRE_VERSION")
-        return cls(
+        settings = cls(
             database_url=database_url_from_env(),
             active_questionnaire_version=int(active) if active else None,
             max_backdate_days=_parse_backdate(os.environ.get("MAX_BACKDATE_DAYS")),
             cookie_secure=_parse_bool(os.environ.get("COOKIE_SECURE"), default=os.environ.get("APP_ENV", "").strip().lower() not in DEV_ENVS),
             allowed_origins=tuple(o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()),
         )
+        if web and os.environ.get("APP_ENV", "").strip().lower() not in DEV_ENVS:
+            # Anything that is not local development is treated as real use: HTTPS only, exact trusted origins.
+            if not settings.cookie_secure:
+                raise ConfigError("COOKIE_SECURE must not be disabled outside APP_ENV=dev: admin sessions need HTTPS.")
+            if not settings.allowed_origins or any(not o.lower().startswith("https://") for o in settings.allowed_origins):
+                raise ConfigError(
+                    "Outside APP_ENV=dev, ALLOWED_ORIGINS must list the exact public https:// origin(s), "
+                    "e.g. ALLOWED_ORIGINS=https://reports.example.com"
+                )
+        return settings

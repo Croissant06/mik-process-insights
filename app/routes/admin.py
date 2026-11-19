@@ -4,12 +4,15 @@ Only people created with scripts/admin_users.py can sign in. Every page requires
 """
 from __future__ import annotations
 
+import asyncio
 import hmac
+import secrets
 from datetime import date
 from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 
@@ -19,6 +22,9 @@ from app.models import QuestionnaireVersion, Submission
 
 router = APIRouter(prefix="/admin")
 PAGE_SIZE = 25
+LOGIN_CSRF_COOKIE = "mik_login_csrf"
+# scrypt uses 128 MiB per check: at most two at once, so a burst of sign-in attempts cannot exhaust a small server.
+_HASH_SLOTS = asyncio.Semaphore(2)
 GENERIC_LOGIN_ERROR = "Грешно потребителско име или парола."
 
 
@@ -35,6 +41,15 @@ def _harden(resp):
 
 def _page(request: Request, template: str, ctx: dict, status: int = 200):
     return _harden(request.app.state.templates.TemplateResponse(request, template, ctx, status_code=status))
+
+
+def _login_page(request: Request, error: str | None, status: int = 200):
+    """Login page with a fresh double-submit CSRF token (cookie + hidden field) - there is no session yet to hold one."""
+    token = secrets.token_urlsafe(24)
+    resp = _page(request, "admin_login.html", {"error": error, "csrf": token}, status)
+    resp.set_cookie(LOGIN_CSRF_COOKIE, token, httponly=True, samesite="strict", path="/admin",
+                    secure=request.app.state.settings.cookie_secure, max_age=3600)
+    return resp
 
 
 def _redirect(url: str):
@@ -79,35 +94,45 @@ def _client_key(request: Request, login: str) -> tuple[str, str]:
 def login_form(request: Request):
     if _current(request):
         return _redirect("/admin")
-    return _page(request, "admin_login.html", {"error": None})
+    return _login_page(request, None)
 
 
 @router.post("/login", response_class=HTMLResponse)
 async def login_submit(request: Request):
     s = request.app.state
     form = await _form(request)
+    expected = request.cookies.get(LOGIN_CSRF_COOKIE, "")
+    if not expected or not hmac.compare_digest(form.get("csrf", ""), expected):
+        return _login_page(request, "Страницата е изтекла. Опитайте отново.", 403)
     login, password = form.get("login", "")[:64], form.get("password", "")[:256]
     ip_key, login_key = _client_key(request, login)
     throttle = s.login_throttle
     if throttle.locked_for(ip_key) or throttle.locked_for(login_key):
-        with s.session_factory() as db:
-            auth.audit(db, "login_throttled")
-        return _page(request, "admin_login.html", {"error": "Твърде много опити. Опитайте по-късно."}, 429)
+        return _login_page(request, "Твърде много опити. Опитайте по-късно.", 429)  # already audited when the lock began
 
     with s.session_factory() as db:
         user = auth.get_by_login(db, login)
-        ok = auth.verify_password(password, user.password_hash if user else auth.DUMMY_HASH)
+        async with _HASH_SLOTS:
+            ok = await run_in_threadpool(auth.verify_password, password, user.password_hash if user else auth.DUMMY_HASH)
         if ok and user and user.is_active:
             throttle.success(login_key)
+            if auth.needs_rehash(user.password_hash):
+                user.password_hash = await run_in_threadpool(auth.hash_password, password)
+                db.commit()
+            auth.purge_old_audit(db)
             token, _ = auth.start_session(db, user)
             auth.audit(db, "login_ok", user.id)
             resp = _redirect("/admin")
             _set_cookie(request, resp, token)
             return resp
-        throttle.failure(ip_key)
-        throttle.failure(login_key)
-        auth.audit(db, "login_failed", user.id if user else None)  # never the attempted name or password
-    return _page(request, "admin_login.html", {"error": GENERIC_LOGIN_ERROR}, 401)
+        locked = throttle.failure(ip_key) | throttle.failure(login_key)
+        # Only failures against a real account are audited (unknown names are free for an attacker to repeat), and a
+        # lock is audited once when it starts, so the audit table cannot be flooded from the login form.
+        if user:
+            auth.audit(db, "login_failed", user.id)  # never the attempted name or password
+        if locked:
+            auth.audit(db, "login_throttled")
+    return _login_page(request, GENERIC_LOGIN_ERROR, 401)
 
 
 @router.post("/logout")
@@ -118,7 +143,7 @@ async def logout(request: Request):
     user, sess = cur
     form = await _form(request)
     if not hmac.compare_digest(form.get("csrf", ""), sess["csrf"]):
-        return _page(request, "admin_login.html", {"error": "Заявката е отказана."}, 403)
+        return _login_page(request, "Заявката е отказана.", 403)
     with request.app.state.session_factory() as db:
         auth.end_session(db, request.cookies.get(auth.COOKIE_NAME))
         auth.audit(db, "logout", user["id"])

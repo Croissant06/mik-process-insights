@@ -27,7 +27,9 @@ Source: `docs/audit/TECHNICAL_AUDIT_2026-11-17.md`. Rule: **no real employee dat
 
 ## Admin panel follow-ups
 - [ ] Create the four admin accounts (Presiyan, Martin, Росица, Миглена) — with Presiyan
-- [ ] CSRF token on every future state-changing admin form (only logout has one today)
+- [x] (19 Nov) Login form has a double-submit CSRF token; logout has a session token. Every future state-changing admin form must carry one.
+- [x] (19 Nov) scrypt n=2^17 (OWASP), re-hash on login; production start refuses non-HTTPS cookies / missing exact `ALLOWED_ORIGINS`; admin forms 4 KB; throttle memory bounded; audit noise limited and purged after 90 days
+- [ ] Confirm with Presiyan/Martin whether all four admins may see all report detail (names included) before real data
 - [ ] Let admins change their own password; consider a stored (DB) login throttle if more than one worker is ever run
 - [ ] Per-IP rate limit at the proxy; HTTPS + `COOKIE_SECURE=1` before any non-local use
 - [ ] Export (Phase 2 in `docs/NEXT_STEPS_PLAN.md`)

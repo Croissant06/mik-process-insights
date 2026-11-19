@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         sub.add_parser(name).add_argument("--login", required=True)
     args = ap.parse_args(argv)
 
-    session_factory = make_session_factory(make_engine(Settings.from_env().database_url))
+    session_factory = make_session_factory(make_engine(Settings.from_env(web=False).database_url))
     try:
         with session_factory() as db:
             if args.cmd == "list":

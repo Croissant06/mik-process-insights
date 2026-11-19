@@ -86,3 +86,12 @@ def test_js_required_fallback_still_accepts_same_origin_form_post(client):
 def test_rejections_do_not_echo_the_request(client):
     r = client.post("/api/submissions", content="СЕКРЕТ", headers={"content-type": "text/plain"})
     assert "СЕКРЕТ" not in r.text
+
+
+def test_configured_origins_replace_host_matching(make_client):
+    c = make_client(allowed_origins=("https://reports.example.com",))
+    body = {"content-type": "application/json"}
+    same_host = c.post("/api/submissions", content="{}", headers={**body, "origin": "http://testserver"})
+    assert same_host.status_code == 403  # own Host no longer trusted once exact origins are configured
+    ok = c.post("/api/submissions", content="{}", headers={**body, "origin": "https://reports.example.com"})
+    assert ok.status_code != 403

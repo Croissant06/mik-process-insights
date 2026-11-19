@@ -20,9 +20,24 @@ def make_admin(client, login="martin", name="Мартин Тест", password=PW
         return auth.create_admin(db, login, name, password).id
 
 
-def login(client, user="martin", password=PW, **kw):
-    return client.post("/admin/login", content=f"login={user}&password={password}", follow_redirects=False,
-                       headers={"content-type": "application/x-www-form-urlencoded"}, **kw)
+@pytest.fixture(autouse=True)
+def fast_scrypt(monkeypatch):
+    """Tests use a cheap scrypt cost; test_production_scrypt_cost pins the real one."""
+    monkeypatch.setattr(auth, "_N", 2**10)
+
+
+def login_token(client):
+    """GET the login page like a browser: returns the double-submit CSRF token (also set as a cookie)."""
+    import re
+    page = client.get("/admin/login")
+    assert page.status_code == 200
+    return re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
+
+
+def login(client, user="martin", password=PW, token=None, **kw):
+    token = token or login_token(client)
+    return client.post("/admin/login", content=f"csrf={token}&login={user}&password={password}", follow_redirects=False,
+                       headers={"content-type": "application/x-www-form-urlencoded", "cookie": f"mik_login_csrf={token}"}, **kw)
 
 
 def audit_actions(client):
@@ -131,8 +146,9 @@ def test_wrong_password_and_unknown_user_look_identical(client):
     a = login(client, password="wrong password here")
     b = login(client, user="nobody", password="wrong password here")
     assert a.status_code == b.status_code == 401
-    assert a.text == b.text and "Грешно потребителско име или парола." in a.text
-    assert "set-cookie" not in a.headers
+    strip = lambda r: __import__("re").sub(r'name="csrf" value="[^"]+"', "", r.text)  # noqa: E731
+    assert strip(a) == strip(b) and "Грешно потребителско име или парола." in a.text
+    assert "mik_admin" not in a.headers.get("set-cookie", "")
 
 
 def test_inactive_admin_cannot_login_and_live_session_dies(client):
@@ -201,7 +217,7 @@ def test_login_is_throttled_after_repeated_failures(client):
     for _ in range(5):
         assert login(client, password="wrong password here").status_code == 401
     r = login(client)  # even the right password is refused while locked
-    assert r.status_code == 429 and "set-cookie" not in r.headers
+    assert r.status_code == 429 and "mik_admin" not in r.headers.get("set-cookie", "")
 
 
 def test_throttle_unit():
@@ -298,3 +314,84 @@ def test_admin_user_cli(make_client, db_url, monkeypatch, capsys):
     assert cli.main(["deactivate", "--login", "rosica"]) == 0
     assert c.get("/admin", follow_redirects=False).status_code == 303  # signed out everywhere
     assert cli.main(["set-password", "--login", "nobody"]) == 1
+
+
+# ---- hardening after ChatGPT's review of ef17c3e ----------------------------------------------------------------
+
+def test_production_scrypt_cost_is_owasp_minimum(monkeypatch):
+    monkeypatch.undo()
+    assert (auth._N, auth._R, auth._P) == (2**17, 8, 1)
+    h = auth.hash_password(PW)
+    assert h.split("$")[1:4] == [str(2**17), "8", "1"] and auth.verify_password(PW, h)
+
+
+def test_weaker_hash_is_upgraded_at_next_good_login(client, monkeypatch):
+    make_admin(client)
+    old = auth.hash_password(PW)  # cost 2**10 (test cost)
+    with sf(client)() as db:
+        auth.get_by_login(db, "martin").password_hash = old
+        db.commit()
+    monkeypatch.setattr(auth, "_N", 2**11)  # pretend the policy was raised
+    assert auth.needs_rehash(old) and login(client).status_code == 303
+    with sf(client)() as db:
+        new = auth.get_by_login(db, "martin").password_hash
+    assert new != old and new.split("$")[1] == str(2**11) and auth.verify_password(PW, new)
+    assert not auth.needs_rehash(new)
+
+
+def test_login_requires_matching_csrf_token(client):
+    make_admin(client)
+    token = login_token(client)
+    form = {"content-type": "application/x-www-form-urlencoded"}
+    body = f"login=martin&password={PW}"
+    assert client.post("/admin/login", content=body, headers=form, follow_redirects=False).status_code == 403  # none
+    r = client.post("/admin/login", content=f"csrf=wrong&{body}", headers={**form, "cookie": f"mik_login_csrf={token}"},
+                    follow_redirects=False)
+    assert r.status_code == 403 and "mik_admin" not in r.headers.get("set-cookie", "").split(";")[0]
+    assert login(client, token=token).status_code == 303
+
+
+def test_login_cookie_flags(make_client):
+    c = make_client(cookie_secure=True)
+    ck = c.get("/admin/login").headers["set-cookie"].lower()
+    assert "httponly" in ck and "samesite=strict" in ck and "secure" in ck and "path=/admin" in ck
+
+
+def test_admin_forms_have_small_body_cap(client):
+    r = client.post("/admin/login", content="x=" + "a" * 5000, follow_redirects=False,
+                    headers={"content-type": "application/x-www-form-urlencoded"})
+    assert r.status_code == 413
+    assert client.post("/api/submissions", content=b"{}" + b" " * 5000, headers=JSON).status_code != 413  # API keeps 256 KB
+
+
+def test_throttle_memory_is_bounded():
+    t = auth.LoginThrottle(limit=3, max_keys=50)
+    for i in range(500):
+        t.failure(f"login:{i}")
+    assert len(t._fails) + len(t._locked) <= 50 + 1
+    assert t.failure("ip:1") is False and t.failure("ip:1") is False and t.failure("ip:1") is True
+    assert t.locked_for("ip:1") > 0
+
+
+def test_lockout_is_audited_once_and_unknown_names_are_not(client):
+    make_admin(client)
+    for _ in range(12):
+        login(client, user="nobody", password="wrong-wrong-wrong")
+    acts = audit_actions(client)
+    assert "login_failed" not in acts and acts.count("login_throttled") == 1
+    assert login(client, user="martin").status_code == 429  # same IP is locked
+
+
+def test_old_noise_in_audit_log_is_purged_but_history_kept(client):
+    uid = make_admin(client)
+    old = datetime.now(timezone.utc) - timedelta(days=120)
+    with sf(client)() as db:
+        db.add_all([AdminAudit(action="login_failed", user_id=uid, at=old), AdminAudit(action="login_ok", user_id=uid, at=old)])
+        db.commit()
+        assert auth.purge_old_audit(db) == 1
+    assert audit_actions(client).count("login_ok") == 1
+
+
+def test_login_semaphore_limits_concurrent_hashing():
+    from app.routes import admin
+    assert admin._HASH_SLOTS._value == 2

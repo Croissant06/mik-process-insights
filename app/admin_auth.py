@@ -24,7 +24,8 @@ SESSION_IDLE = timedelta(hours=2)
 SESSION_MAX = timedelta(hours=12)
 COOKIE_NAME = "mik_admin"
 
-_N, _R, _P = 2**14, 8, 1  # scrypt cost (16 MiB)
+_N, _R, _P = 2**17, 8, 1  # scrypt cost (128 MiB, OWASP-recommended minimum for scrypt; ~0.4 s on a small server)
+_MAXMEM = 256 * 1024 * 1024
 
 
 class AdminError(ValueError):
@@ -43,7 +44,7 @@ def aware(dt: datetime) -> datetime:
 
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
-    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, maxmem=64 * 1024 * 1024)
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, maxmem=_MAXMEM)
     b = lambda x: base64.b64encode(x).decode("ascii")  # noqa: E731
     return f"scrypt${_N}${_R}${_P}${b(salt)}${b(digest)}"
 
@@ -56,10 +57,19 @@ def verify_password(password: str, stored: str) -> bool:
         expected = base64.b64decode(digest)
         got = hashlib.scrypt(
             password.encode("utf-8"), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p),
-            maxmem=64 * 1024 * 1024, dklen=len(expected),
+            maxmem=_MAXMEM, dklen=len(expected),
         )
         return hmac.compare_digest(got, expected)
     except Exception:  # malformed hash must never raise into the request
+        return False
+
+
+def needs_rehash(stored: str) -> bool:
+    """True when a stored hash uses weaker cost parameters than the current ones (re-hashed at next good login)."""
+    try:
+        _, n, r, p, *_ = stored.split("$")
+        return (int(n), int(r), int(p)) != (_N, _R, _P) and int(n) * int(r) < _N * _R
+    except Exception:
         return False
 
 
@@ -108,6 +118,18 @@ def get_by_login(db: Session, login: str) -> AdminUser | None:
 def audit(db: Session, action: str, user_id: int | None = None, detail: str = "") -> None:
     db.add(AdminAudit(user_id=user_id, action=action, detail=detail[:255]))
     db.commit()
+
+
+AUDIT_NOISE = ("login_failed", "login_throttled")
+
+
+def purge_old_audit(db: Session, days: int = 90) -> int:
+    """Delete failed/throttled sign-in rows older than `days` (they are noise, and unbounded otherwise)."""
+    from sqlalchemy import delete
+    cutoff = _now() - timedelta(days=days)
+    n = db.execute(delete(AdminAudit).where(AdminAudit.action.in_(AUDIT_NOISE), AdminAudit.at < cutoff)).rowcount
+    db.commit()
+    return n or 0
 
 
 # ---- sessions -------------------------------------------------------------------------------------------------
@@ -168,10 +190,16 @@ def end_all_sessions(db: Session, user_id: int) -> None:
 # ---- login throttling (in memory: resets on restart; one worker) ------------------------------------------------
 
 class LoginThrottle:
-    """Lock a key for `lock_seconds` after `limit` failures within `window` seconds."""
+    """Lock a key for `lock_seconds` after `limit` failures within `window` seconds.
 
-    def __init__(self, limit: int = 5, window: int = 900, lock_seconds: int = 900, clock=time.monotonic):
+    Memory is bounded: expired entries are pruned and at most `max_keys` keys are tracked, so an attacker sending
+    endless distinct login names cannot grow it without limit.
+    """
+
+    def __init__(self, limit: int = 5, window: int = 900, lock_seconds: int = 900, clock=time.monotonic,
+                 max_keys: int = 10_000):
         self.limit, self.window, self.lock_seconds, self.clock = limit, window, lock_seconds, clock
+        self.max_keys = max_keys
         self._fails: dict[str, list[float]] = {}
         self._locked: dict[str, float] = {}
 
@@ -183,13 +211,24 @@ class LoginThrottle:
             return 0
         return int(left) + 1
 
-    def failure(self, key: str) -> None:
+    def _prune(self, now: float) -> None:
+        self._locked = {k: t for k, t in self._locked.items() if t > now}
+        self._fails = {k: v for k, v in self._fails.items() if v and now - v[-1] < self.window}
+        while len(self._fails) + len(self._locked) > self.max_keys and self._fails:
+            self._fails.pop(next(iter(self._fails)))  # oldest-inserted failure counter first; locks are kept
+
+    def failure(self, key: str) -> bool:
+        """Record a failure. Returns True when this failure started a lock."""
         now = self.clock()
+        if len(self._fails) + len(self._locked) >= self.max_keys:
+            self._prune(now)
         recent = [t for t in self._fails.get(key, []) if now - t < self.window] + [now]
         self._fails[key] = recent
         if len(recent) >= self.limit:
             self._locked[key] = now + self.lock_seconds
             self._fails.pop(key, None)
+            return True
+        return False
 
     def success(self, key: str) -> None:
         self._fails.pop(key, None)

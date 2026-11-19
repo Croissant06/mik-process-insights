@@ -24,7 +24,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
     rng = random.Random(args.seed)
-    settings = Settings.from_env()
+    settings = Settings.from_env(web=False)
     if "prod" in settings.database_url.lower():
         sys.exit("Refusing to seed a database whose URL contains 'prod'.")
     session = make_session_factory(make_engine(settings.database_url))()

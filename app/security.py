@@ -26,8 +26,10 @@ def _json(status: int, message: str) -> tuple[list, bytes]:
 
 
 class RequestProtectionMiddleware:
-    def __init__(self, app, *, allowed_origins: tuple[str, ...] = (), max_body_bytes: int = 256 * 1024):
+    def __init__(self, app, *, allowed_origins: tuple[str, ...] = (), max_body_bytes: int = 256 * 1024,
+                 path_limits: dict[str, int] | None = None):
         self.app = app
+        self.path_limits = path_limits or {"/admin/": 4096}  # sign-in/logout forms are tiny
         self.allowed = {o.lower() for o in allowed_origins}
         self.max_body = max_body_bytes
 
@@ -44,8 +46,8 @@ class RequestProtectionMiddleware:
             return True
         if origin.lower() == "null":
             return False
-        if origin.rstrip("/").lower() in self.allowed:
-            return True
+        if self.allowed:  # configured: exact trusted origins only, Host is not consulted
+            return origin.rstrip("/").lower() in self.allowed
         host = headers.get(b"host", b"").decode("latin-1").strip().lower()
         return bool(host) and urlsplit(origin).netloc.lower() == host
 
@@ -60,10 +62,11 @@ class RequestProtectionMiddleware:
             ctype = headers.get(b"content-type", b"").decode("latin-1").split(";")[0].strip().lower()
             if ctype != "application/json":
                 return await self._reject(send, 415, "Невалидна заявка.")
+        limit = next((v for k, v in self.path_limits.items() if scope["path"].startswith(k)), self.max_body)
         declared = headers.get(b"content-length")
         if declared is not None:
             try:
-                if int(declared) > self.max_body:
+                if int(declared) > limit:
                     return await self._reject(send, 413, "Заявката е твърде голяма.")
             except ValueError:
                 return await self._reject(send, 400, "Невалидна заявка.")
@@ -76,7 +79,7 @@ class RequestProtectionMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_body:
+                if received > limit:
                     too_big = True
                     return {"type": "http.request", "body": b"", "more_body": False}
             return message
