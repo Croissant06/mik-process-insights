@@ -46,6 +46,23 @@ services:
       db:
         condition: service_healthy
     command: ["sh", "-ec", "alembic upgrade head && python scripts/grant_db_access.py"]
+  # On-demand, owner-run retention review (not started by `up`). Reads RETENTION_DAYS from .env.hosted.
+  # Dry run:  docker compose --env-file .env.hosted -f docker-compose.hosted.yml run --rm retention
+  # Deletion: RETENTION_DELETION_APPROVED=1 docker compose ... run --rm retention --delete --i-am-the-operator
+  retention:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: *hosted-environment
+      POSTGRES_USER: mik_owner
+      POSTGRES_PASSWORD: ${MIK_DB_OWNER_PASSWORD:?set a database owner password}
+      RETENTION_DAYS: ${RETENTION_DAYS:-90}
+      RETENTION_DELETION_APPROVED: ${RETENTION_DELETION_APPROVED:-0}
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["python", "scripts/retention_review.py"]
+    command: []
   web:
     <<: *app
     restart: unless-stopped

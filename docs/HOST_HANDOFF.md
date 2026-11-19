@@ -23,7 +23,7 @@ Short version of `docs/HOSTED_DEPLOYMENT.md`. Everything here was verified with 
 ## Limits and behaviour to know
 - Reports: name + department required, no sign-in (names are self-declared). Files optional: 10 per report, 5 MiB each, any format, virus-scanned; if the scanner is down a report with files gets a retryable 503 and nothing is saved, reports without files still work.
 - One full upload uses roughly 350 MiB of RAM; at most two are processed at once (a third gets a retryable 503).
-- **Retention is provisional: 90 days from submission, and nothing is deleted automatically.** Dry run: `docker compose … run --rm migrate python scripts/retention_review.py`. Deleting needs the data owner's confirmation first, then `RETENTION_DELETION_APPROVED=1 … --delete --i-am-the-operator` with the owner database role. Backups and exported files are not touched; they expire on the company schedule.
+- **Retention is provisional: 90 days from submission, and nothing is deleted automatically.** Set `RETENTION_DAYS` in `.env.hosted` (default 90, minimum 7). Dry run: `docker compose --env-file .env.hosted -f docker-compose.hosted.yml run --rm retention`. Deleting needs the data owner's confirmation first, then `RETENTION_DELETION_APPROVED=1 docker compose … run --rm retention --delete --i-am-the-operator` (the service uses the owner database role). Backups and exported files are not touched; they expire on the company schedule.
 - The web application's database role cannot delete reports or audit rows and cannot create objects. Old failed-sign-in audit noise: `scripts/purge_audit_noise.py --days 90` (owner role).
 - Logs contain request id, method, path, error type and source line only; the hosted stack runs uvicorn with the access log off.
 

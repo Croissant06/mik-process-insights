@@ -1,0 +1,30 @@
+# Runs the existing test suite in Docker against the throw-away PostgreSQL from docker-compose.test.yml.
+# Synthetic data only: the database lives in tmpfs and disappears with the job. No secrets are used.
+name: tests
+
+on:
+  pull_request:
+    branches: [development, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-postgres-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the hosted Compose file
+        run: |
+          MIK_PUBLIC_ORIGIN=https://example.invalid MIK_DB_OWNER_PASSWORD=ci MIK_DB_APP_PASSWORD=ci \
+            docker compose -f docker-compose.hosted.yml --profile tools config --quiet
+      - name: Test suite on PostgreSQL 16
+        run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
