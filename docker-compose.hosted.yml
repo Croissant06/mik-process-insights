@@ -1,0 +1,75 @@
+# Dedicated company-server stack. Put the web service behind restricted HTTPS on the host.
+name: mik-process-insights-hosted
+
+x-app: &app
+  image: mik-process-insights-hosted
+  build:
+    context: .
+    target: runtime
+
+x-hosted-environment: &hosted-environment
+  APP_ENV: ${MIK_APP_ENV:-staging}
+  PUBLIC_ORIGIN: ${MIK_PUBLIC_ORIGIN:?set the private HTTPS origin}
+  COOKIE_SECURE: "1"
+  POSTGRES_HOST: db
+  POSTGRES_DB: mik_insights
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mik_owner
+      POSTGRES_PASSWORD: ${MIK_DB_OWNER_PASSWORD:?set a database owner password}
+      POSTGRES_DB: mik_insights
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mik_owner", "-d", "mik_insights"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  scanner:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamdb:/var/lib/clamav
+  migrate:
+    <<: *app
+    environment:
+      <<: *hosted-environment
+      POSTGRES_USER: mik_owner
+      POSTGRES_PASSWORD: ${MIK_DB_OWNER_PASSWORD:?set a database owner password}
+      MIK_DB_APP_PASSWORD: ${MIK_DB_APP_PASSWORD:?set an independent app database password}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-ec", "alembic upgrade head && python scripts/grant_db_access.py"]
+  web:
+    <<: *app
+    restart: unless-stopped
+    environment:
+      <<: *hosted-environment
+      POSTGRES_USER: mik_app
+      POSTGRES_PASSWORD: ${MIK_DB_APP_PASSWORD:?set an independent app database password}
+      ACTIVE_QUESTIONNAIRE_VERSION: ${MIK_QUESTIONNAIRE_VERSION:-}
+      MAX_BACKDATE_DAYS: ${MIK_MAX_BACKDATE_DAYS:-}
+      ATTACHMENT_SCAN_HOST: scanner
+      FORWARDED_ALLOW_IPS: ${MIK_TRUSTED_PROXY_IPS:-127.0.0.1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      scanner:
+        condition: service_started
+    command: ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]
+    ports:
+      - "127.0.0.1:${MIK_BIND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+volumes:
+  pgdata:
+  clamdb:

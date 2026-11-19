@@ -29,6 +29,10 @@ class QuestionnaireError(Exception):
     pass
 
 
+def is_approved(definition: dict) -> bool:
+    return definition.get("status") == "approved" and definition.get("departments", {}).get("placeholder") is False
+
+
 def checksum(definition: dict) -> str:
     blob = json.dumps(definition, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()

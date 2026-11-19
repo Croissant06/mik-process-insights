@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,6 +47,15 @@ class Submission(Base):
     respondent_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     department_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     answers: Mapped[dict] = mapped_column(JsonType, nullable=False)
+
+
+class ReportAttachment(Base):
+    __tablename__ = "report_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
 
 class AdminUser(Base):

@@ -24,7 +24,7 @@ SESSION_IDLE = timedelta(hours=2)
 SESSION_MAX = timedelta(hours=12)
 COOKIE_NAME = "mik_admin"
 
-_N, _R, _P = 2**14, 8, 1  # scrypt cost (16 MiB)
+_N, _R, _P = 2**14, 8, 5  # OWASP scrypt profile (16 MiB)
 
 
 class AdminError(ValueError):

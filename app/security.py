@@ -16,7 +16,13 @@ from __future__ import annotations
 import json
 from urllib.parse import urlsplit
 
+from app.attachments import MAX_UPLOAD_REQUEST, UPLOAD_PATH
+
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+class BodyTooLarge(Exception):
+    pass
 
 
 def _json(status: int, message: str) -> tuple[list, bytes]:
@@ -26,10 +32,12 @@ def _json(status: int, message: str) -> tuple[list, bytes]:
 
 
 class RequestProtectionMiddleware:
-    def __init__(self, app, *, allowed_origins: tuple[str, ...] = (), max_body_bytes: int = 256 * 1024):
+    def __init__(self, app, *, allowed_origins: tuple[str, ...] = (), max_body_bytes: int = 256 * 1024,
+                 public_origin: str | None = None):
         self.app = app
         self.allowed = {o.lower() for o in allowed_origins}
         self.max_body = max_body_bytes
+        self.public_origin = public_origin.lower() if public_origin else None
 
     async def _reject(self, send, status: int, message: str):
         headers, body = _json(status, message)
@@ -41,13 +49,20 @@ class RequestProtectionMiddleware:
             return False
         origin = headers.get(b"origin", b"").decode("latin-1").strip()
         if not origin:
+            if self.public_origin:
+                return headers.get(b"sec-fetch-site", b"").lower() == b"same-origin"
             return True
         if origin.lower() == "null":
             return False
+        if self.public_origin:
+            return origin.lower() == self.public_origin
         if origin.rstrip("/").lower() in self.allowed:
             return True
         host = headers.get(b"host", b"").decode("latin-1").strip().lower()
-        return bool(host) and urlsplit(origin).netloc.lower() == host
+        try:
+            return bool(host) and urlsplit(origin).netloc.lower() == host
+        except ValueError:
+            return False
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] not in UNSAFE:
@@ -60,41 +75,27 @@ class RequestProtectionMiddleware:
             ctype = headers.get(b"content-type", b"").decode("latin-1").split(";")[0].strip().lower()
             if ctype != "application/json":
                 return await self._reject(send, 415, "Невалидна заявка.")
+        limit = MAX_UPLOAD_REQUEST if scope["method"] == "POST" and scope["path"] == UPLOAD_PATH else self.max_body
         declared = headers.get(b"content-length")
         if declared is not None:
             try:
-                if int(declared) > self.max_body:
+                if int(declared) > limit:
                     return await self._reject(send, 413, "Заявката е твърде голяма.")
             except ValueError:
                 return await self._reject(send, 400, "Невалидна заявка.")
 
         received = 0
-        too_big = False
 
         async def limited_receive():
-            nonlocal received, too_big
+            nonlocal received
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_body:
-                    too_big = True
-                    return {"type": "http.request", "body": b"", "more_body": False}
+                if received > limit:
+                    raise BodyTooLarge
             return message
 
-        started = False
-
-        async def guarded_send(message):
-            nonlocal started
-            if too_big and not started:
-                started = True
-                headers_, body = _json(413, "Заявката е твърде голяма.")
-                await send({"type": "http.response.start", "status": 413, "headers": headers_})
-                await send({"type": "http.response.body", "body": body})
-                return
-            if too_big:
-                return  # swallow whatever the app tried to send after we answered 413
-            if message["type"] == "http.response.start":
-                started = True
-            await send(message)
-
-        await self.app(scope, limited_receive, guarded_send)
+        try:
+            await self.app(scope, limited_receive, send)
+        except BodyTooLarge:
+            await self._reject(send, 413, "Заявката е твърде голяма.")

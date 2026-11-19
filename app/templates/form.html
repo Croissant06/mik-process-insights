@@ -121,6 +121,17 @@
         {% if loop.last %}</section>{% endif %}
       {% endfor %}
 
+      {% if q.attachments %}
+      <section class="section">
+        <div class="field" data-field="attachments">
+          <label class="field__label" for="attachments">Прикачени файлове <span class="field__opt">(по желание)</span></label>
+          <p class="field__help" id="attachments-help">До 3 файла по 5 MB. Прикачвайте само служебни файлове, свързани с отчета.</p>
+          <input class="input" type="file" id="attachments" multiple aria-describedby="attachments-help err-attachments">
+          {{ err('attachments') }}
+        </div>
+      </section>
+      {% endif %}
+
       <div class="actions">
         <button id="submit" class="btn" type="submit">
           <svg class="icon btn__icon"><use href="#i-send"/></svg>
@@ -137,7 +148,7 @@
     <div class="success__badge" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
     </div>
-    <h2>Благодарим Ви!</h2>
+    <h2 tabindex="-1">Благодарим Ви!</h2>
     <p id="success-text">Дневният отчет е изпратен успешно.</p>
     <button id="another" class="btn btn--secondary" type="button">Попълни нов отчет</button>
   </div>

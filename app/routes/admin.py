@@ -6,16 +6,16 @@ from __future__ import annotations
 
 import hmac
 from datetime import date
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import func, select
 
 from app import admin_auth as auth
 from app import questionnaire
-from app.models import QuestionnaireVersion, Submission
+from app.models import QuestionnaireVersion, ReportAttachment, Submission
 
 router = APIRouter(prefix="/admin")
 PAGE_SIZE = 25
@@ -235,9 +235,33 @@ def report_detail(request: Request, sid: str):
             else:
                 rows.append({"label": qdef["label"], "text": val or ""})
         auth.audit(db, "view_report", user["id"], f"id={sub.id}")
+        attachments = db.execute(
+            select(ReportAttachment.id, ReportAttachment.filename)
+            .where(ReportAttachment.submission_id == sub.id)
+            .order_by(ReportAttachment.filename, ReportAttachment.id)
+        ).all()
         r = {
             "id": sub.id, "work_date": sub.work_date.strftime("%d.%m.%Y"), "submitted": _local(sub.submitted_at, s.settings.timezone),
             "name": sub.respondent_name or "", "department": depts.get(sub.department_code, sub.department_code),
-            "version": sub.questionnaire_version, "rows": rows,
+            "version": sub.questionnaire_version, "rows": rows, "attachments": attachments,
         }
     return _page(request, "admin_report.html", {"user": user, "csrf": sess["csrf"], "r": r})
+
+
+@router.get("/attachments/{attachment_id}")
+def download_attachment(request: Request, attachment_id: str):
+    cur = _current(request)
+    if not cur:
+        return _redirect("/admin/login")
+    user, _ = cur
+    with request.app.state.session_factory() as db:
+        item = db.get(ReportAttachment, attachment_id) if len(attachment_id) == 36 else None
+        if item is None:
+            return _harden(Response(status_code=404))
+        body = item.content
+        filename = quote(item.filename, safe="")
+        auth.audit(db, "download_attachment", user["id"], f"id={item.id}")
+    return _harden(Response(
+        body, media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    ))
