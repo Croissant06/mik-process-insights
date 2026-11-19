@@ -54,7 +54,7 @@
         <div class="field" data-field="work_date" style="margin-top: var(--s5)">
           <label class="field__label" for="work_date_btn" id="work_date_label">Дата на отчета</label>
           {% if picker.hint %}<p class="field__help">{{ picker.hint }}</p>{% endif %}
-          <div class="datepicker" data-today="{{ picker.today }}" data-min="{{ picker.min }}">
+          <div class="datepicker" data-today="{{ picker.today }}" {% if picker.min %}data-min="{{ picker.min }}"{% endif %}>
             <input type="hidden" id="work_date" name="work_date" value="{{ picker.today }}">
             <button type="button" class="input datepicker__trigger" id="work_date_btn" aria-haspopup="dialog" aria-expanded="false" aria-describedby="err-work_date">
               <svg class="icon"><use href="#i-calendar"/></svg>
@@ -125,7 +125,7 @@
       <section class="section">
         <div class="field" data-field="attachments">
           <label class="field__label" for="attachments">Прикачени файлове <span class="field__opt">(по желание)</span></label>
-          <p class="field__help" id="attachments-help">До 3 файла по 5 MB. Прикачвайте само служебни файлове, свързани с отчета.</p>
+          <p class="field__help" id="attachments-help">До 10 файла по 5 MB. Прикачвайте само служебни файлове, свързани с отчета.</p>
           <input class="input" type="file" id="attachments" multiple aria-describedby="attachments-help err-attachments">
           {{ err('attachments') }}
         </div>

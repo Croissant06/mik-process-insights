@@ -9,3 +9,5 @@ psycopg[binary]>=3.2,<4
 jinja2>=3.1,<4
 pyyaml>=6.0,<7
 tzdata>=2024.1
+openpyxl>=3.1,<4
+fpdf2>=2.8,<3

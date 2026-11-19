@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
@@ -12,6 +13,8 @@ from app.models import Submission
 from app.validation import today_local, validate_submission
 
 router = APIRouter(prefix="/api")
+# A full upload is ~70 MiB of base64 JSON held in memory (plus decoded bytes), so only a few run at once.
+_UPLOAD_SLOTS = asyncio.Semaphore(2)
 
 
 @router.get("/questionnaire")
@@ -24,6 +27,16 @@ def get_questionnaire(request: Request):
 @router.post("/submissions")
 @router.post("/submissions/with-attachments")
 async def create_submission(request: Request):
+    if request.url.path.endswith("/with-attachments"):
+        if _UPLOAD_SLOTS.locked():
+            return JSONResponse({"errors": {"attachments": "Системата обработва други файлове. Опитайте след малко."}},
+                                status_code=503, headers={"Retry-After": "10"})
+        async with _UPLOAD_SLOTS:
+            return await _handle(request)
+    return await _handle(request)
+
+
+async def _handle(request: Request):
     try:
         payload = await request.json()
     except ValueError:

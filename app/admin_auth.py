@@ -93,7 +93,8 @@ def normalise_login(login: str) -> str:
     return login
 
 
-def create_admin(db: Session, login: str, display_name: str, password: str, *, max_admins: int = MAX_ADMINS) -> AdminUser:
+def create_admin(db: Session, login: str, display_name: str, password: str, *, max_admins: int = MAX_ADMINS,
+                 can_export_csv: bool = False) -> AdminUser:
     login = normalise_login(login)
     display_name = (display_name or "").strip()
     if not display_name or len(display_name) > 120:
@@ -104,9 +105,10 @@ def create_admin(db: Session, login: str, display_name: str, password: str, *, m
     active = db.scalar(select(func.count()).select_from(AdminUser).where(AdminUser.is_active.is_(True)))
     if active >= max_admins:
         raise AdminError(f"There are already {active} active admins (limit {max_admins}). Deactivate one first.")
-    user = AdminUser(login=login, display_name=display_name, password_hash=hash_password(password), is_active=True)
+    user = AdminUser(login=login, display_name=display_name, password_hash=hash_password(password), is_active=True,
+                     can_export_csv=can_export_csv)
     db.add(user)
-    db.add(AdminAudit(user_id=None, action="admin_created", detail=f"login={login}"))
+    db.add(AdminAudit(user_id=None, action="admin_created", detail=f"login={login} csv={int(can_export_csv)}"))
     db.commit()
     return user
 

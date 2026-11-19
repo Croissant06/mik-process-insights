@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Няма достъп · MIK | Process Insights{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', path='css/admin.css') }}">{% endblock %}
+{% block content %}
+<section class="card" style="max-width:560px;margin-inline:auto">
+  <div class="card__body">
+    {% if too_large %}
+    <h1 style="margin-top:0">Твърде много отчети</h1>
+    <p>Един файл може да съдържа до {{ too_large }} отчета. Стеснете филтрите (отдел, период, версия) и опитайте отново.</p>
+    {% else %}
+    <h1 style="margin-top:0">Няма достъп</h1>
+    <p>Вашият профил няма право да изтегля CSV. Excel и PDF са достъпни за всички администратори.</p>
+    {% endif %}
+    <a class="btn btn--secondary" href="/admin">Назад към отчетите</a>
+  </div>
+</section>
+{% endblock %}

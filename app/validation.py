@@ -17,6 +17,7 @@ MSG = {
     "need_text": "Моля, уточнете.",
     "bad_date": "Невалидна дата.",
     "date_range": "Изберете дата между {min} и {max}.",
+    "date_future": "Изберете днешна или минала дата (до {max}).",
     "bad_type": "Невалиден формат.",
 }
 
@@ -26,15 +27,14 @@ def today_local(tz_name: str, now: datetime | None = None) -> date:
     return (now.astimezone(tz) if now else datetime.now(tz)).date()
 
 
-# Sanity floor so a typo such as year 1926 is rejected even when backdating is unlimited.
-EARLIEST_WORK_DATE = date(2020, 1, 1)
+def date_window(today: date, max_backdate_days: int | None) -> tuple[date | None, date]:
+    """Inclusive (earliest, latest) work date an employee may pick. Never in the future.
 
-
-def date_window(today: date, max_backdate_days: int | None) -> tuple[date, date]:
-    """Inclusive (earliest, latest) work date an employee may pick. Never in the future."""
+    `earliest` is None when backdating is unlimited: any valid past calendar date is accepted (no fixed cutoff).
+    """
     if max_backdate_days is None:
-        return EARLIEST_WORK_DATE, today
-    return max(EARLIEST_WORK_DATE, today - timedelta(days=max(0, max_backdate_days))), today
+        return None, today
+    return today - timedelta(days=max(0, max_backdate_days)), today
 
 
 def fmt_date(d: date) -> str:
@@ -146,7 +146,10 @@ def validate_submission(
         errors["work_date"] = MSG["bad_date"]
     else:
         earliest, latest = date_window(today, max_backdate_days)
-        if not earliest <= work_date <= latest:
+        if earliest is None:
+            if work_date > latest:
+                errors["work_date"] = MSG["date_future"].format(max=fmt_date(latest))
+        elif not earliest <= work_date <= latest:
             errors["work_date"] = MSG["date_range"].format(min=fmt_date(earliest), max=fmt_date(latest))
 
     # questions

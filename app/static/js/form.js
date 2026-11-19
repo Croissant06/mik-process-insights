@@ -10,6 +10,7 @@
   const LABEL = submitLabel.textContent;
   const fileInput = document.getElementById("attachments");
   const maxFileBytes = 5 * 1024 * 1024;
+  const maxFiles = 10;
 
   const errEl = (key) => document.getElementById("err-" + key.replace(".", "-"));
   const controlOf = (key) => {
@@ -137,11 +138,14 @@
     const payload = collect();
     try {
       const files = fileInput ? [...fileInput.files] : [];
-      if (files.length > 3 || files.some((file) => file.size === 0 || file.size > maxFileBytes)) {
-        showErrors({ attachments: "Изберете до 3 файла по 5 MB. Празни файлове не се приемат." });
+      if (files.length > maxFiles || files.some((file) => file.size === 0 || file.size > maxFileBytes)) {
+        showErrors({ attachments: "Изберете до 10 файла по 5 MB. Празни файлове не се приемат." });
         return;
       }
-      if (files.length) payload.attachments = await Promise.all(files.map(readFile));
+      if (files.length) {
+        payload.attachments = [];
+        for (const file of files) payload.attachments.push(await readFile(file)); // one at a time: gentler on phones
+      }
       const endpoint = files.length ? "/api/submissions/with-attachments" : "/api/submissions";
       const res = await fetch(endpoint, {
         method: "POST",

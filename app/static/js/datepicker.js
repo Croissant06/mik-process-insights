@@ -19,7 +19,7 @@
 
   function init(root) {
     const today = parse(root.dataset.today);
-    const min = parse(root.dataset.min);
+    const min = root.dataset.min ? parse(root.dataset.min) : null; // null = no earliest date (any past day)
     const hidden = root.querySelector('input[type="hidden"]');
     const trigger = root.querySelector(".datepicker__trigger");
     const valueEl = root.querySelector(".datepicker__value");
@@ -34,22 +34,31 @@
     let focus = selected;
     const initial = selected;
 
-    const clamp = (o) => (ts(o) < ts(min) ? min : ts(o) > ts(today) ? today : o);
-    const inRange = (o) => ts(o) >= ts(min) && ts(o) <= ts(today);
+    const clamp = (o) => (min && ts(o) < ts(min) ? min : ts(o) > ts(today) ? today : o);
+    const inRange = (o) => (!min || ts(o) >= ts(min)) && ts(o) <= ts(today);
 
     // When many months are selectable, replace the static title with month + year selects for fast jumping.
-    const spanMonths = monthKey(today) - monthKey(min);
+    const spanMonths = min ? monthKey(today) - monthKey(min) : Infinity;
     let monSel = null, yearSel = null;
     if (spanMonths > 2) {
-      let years = "";
-      for (let y = today.y; y >= min.y; y--) years += `<option value="${y}">${y}</option>`;
+      let yearCtl;
+      if (min) {
+        let years = "";
+        for (let y = today.y; y >= min.y; y--) years += `<option value="${y}">${y}</option>`;
+        yearCtl = `<select class="datepicker__sel" aria-label="Година">${years}</select>`;
+      } else {
+        // no earliest date: a 4-digit year field instead of a (very long) list
+        yearCtl = `<input class="datepicker__sel datepicker__year" type="number" inputmode="numeric" min="1000" max="${today.y}" step="1" aria-label="Година">`;
+      }
       title.innerHTML =
-        `<select class="datepicker__sel" aria-label="Месец">${MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("")}</select>` +
-        `<select class="datepicker__sel" aria-label="Година">${years}</select>`;
-      [monSel, yearSel] = title.querySelectorAll("select");
+        `<select class="datepicker__sel" aria-label="Месец">${MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("")}</select>` + yearCtl;
+      monSel = title.querySelector("select");
+      yearSel = title.querySelector(min ? "select:last-of-type" : "input");
       const jump = () => {
-        let v = { y: Number(yearSel.value), m: Number(monSel.value), d: 1 };
-        if (monthKey(v) < monthKey(min)) v = { y: min.y, m: min.m, d: 1 };
+        const yr = Number(yearSel.value);
+        if (!min && !(Number.isInteger(yr) && yr >= 1000 && yr <= today.y)) { yearSel.value = view.y; return; }
+        let v = { y: yr, m: Number(monSel.value), d: 1 };
+        if (min && monthKey(v) < monthKey(min)) v = { y: min.y, m: min.m, d: 1 };
         if (monthKey(v) > monthKey(today)) v = { y: today.y, m: today.m, d: 1 };
         view = v;
         render();
@@ -64,12 +73,12 @@
         monSel.value = view.m;
         [...monSel.options].forEach((o) => {
           const k = view.y * 12 + Number(o.value);
-          o.disabled = k < monthKey(min) || k > monthKey(today);
+          o.disabled = (min && k < monthKey(min)) || k > monthKey(today);
         });
       } else {
         title.textContent = `${MONTHS[view.m - 1]} ${view.y}`;
       }
-      prevBtn.disabled = monthKey(view) <= monthKey(min);
+      prevBtn.disabled = !!min && monthKey(view) <= monthKey(min) || (!min && view.y <= 1000 && view.m <= 1);
       nextBtn.disabled = monthKey(view) >= monthKey(today);
       // roving tabindex target: focus date if visible, else selected, else first selectable day
       let target = monthKey(focus) === monthKey(view) && inRange(focus) ? focus : null;

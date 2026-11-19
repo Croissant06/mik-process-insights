@@ -12,7 +12,7 @@ from app.config import Settings
 from app.models import ReportAttachment
 
 UPLOAD_PATH = "/api/submissions/with-attachments"
-MAX_FILES = 3
+MAX_FILES = 10
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_ENCODED_BYTES = 4 * ((MAX_FILE_BYTES + 2) // 3)
 MAX_UPLOAD_REQUEST = MAX_FILES * MAX_ENCODED_BYTES + 256 * 1024

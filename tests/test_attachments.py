@@ -70,3 +70,55 @@ def test_old_questionnaire_refuses_attachments(attachment_client, valid_payload)
     payload = with_file(client, valid_payload)
     payload["questionnaire_version"] = 1
     assert client.post(attachments.UPLOAD_PATH, json=payload).status_code == 422
+
+
+def _many(client, valid_payload, n, size):
+    p = with_file(client, valid_payload)
+    p["attachments"] = [
+        {"name": f"файл-{i}.dat", "data": base64.b64encode(bytes([i]) * size).decode("ascii")} for i in range(n)
+    ]
+    return p
+
+
+def test_ten_files_of_five_mib_are_accepted_and_eleven_refused(attachment_client, valid_payload):
+    client = attachment_client
+    assert attachments.MAX_FILES == 10 and attachments.MAX_FILE_BYTES == 5 * 1024 * 1024
+    ok = client.post(attachments.UPLOAD_PATH, json=_many(client, valid_payload, 10, attachments.MAX_FILE_BYTES))
+    assert ok.status_code == 201, ok.text[:200]
+    with client.app.state.session_factory() as db:
+        assert db.scalar(select(func.count()).select_from(ReportAttachment)) == 10
+    too_many = client.post(attachments.UPLOAD_PATH, json=_many(client, valid_payload, 11, 10))
+    assert too_many.status_code == 422 and "10" in too_many.json()["errors"]["attachments"]
+    too_big = client.post(attachments.UPLOAD_PATH, json=_many(client, valid_payload, 1, attachments.MAX_FILE_BYTES + 1))
+    assert too_big.status_code == 422
+    with client.app.state.session_factory() as db:  # the refused reports saved nothing
+        assert db.scalar(select(func.count()).select_from(Submission)) == 1
+
+
+def test_upload_request_limit_fits_ten_encoded_files_and_ordinary_route_stays_small():
+    full = 10 * attachments.MAX_ENCODED_BYTES
+    assert attachments.MAX_UPLOAD_REQUEST > full and attachments.MAX_UPLOAD_REQUEST < full + 1024 * 1024
+    assert 66 * 1024 * 1024 < attachments.MAX_UPLOAD_REQUEST < 72 * 1024 * 1024
+
+
+def test_any_company_file_format_is_accepted(attachment_client, valid_payload):
+    client = attachment_client
+    for name in ("лекало.dxf", "поръчка.xlsx", "снимка.heic", "програма.exe", "без-разширение"):
+        r = client.post(attachments.UPLOAD_PATH, json=with_file(client, valid_payload, b"\x00\x01data", name))
+        assert r.status_code == 201, name
+
+
+def test_only_two_uploads_are_processed_at_once(attachment_client, valid_payload):
+    import asyncio
+
+    from app.routes import api
+
+    client = attachment_client
+    async def fill():
+        await api._UPLOAD_SLOTS.acquire(); await api._UPLOAD_SLOTS.acquire()
+    asyncio.run(fill())
+    try:
+        r = client.post(attachments.UPLOAD_PATH, json=with_file(client, valid_payload))
+        assert r.status_code == 503 and r.headers["retry-after"] == "10"
+    finally:
+        api._UPLOAD_SLOTS = asyncio.Semaphore(2)

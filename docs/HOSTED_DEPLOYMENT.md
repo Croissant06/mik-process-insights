@@ -21,7 +21,7 @@ MIK_BIND_PORT=8000
 MIK_DB_OWNER_PASSWORD=<generated-owner-password>
 MIK_DB_APP_PASSWORD=<different-generated-app-password>
 MIK_TRUSTED_PROXY_IPS=<trusted-proxy-peer-ip>
-MIK_QUESTIONNAIRE_VERSION=2
+MIK_QUESTIONNAIRE_VERSION=3
 ```
 
 ```sh
@@ -33,12 +33,24 @@ docker compose --env-file .env.hosted -f docker-compose.hosted.yml exec web \
   python scripts/admin_users.py create --login pilot-test --name "Тестов администратор"
 ```
 
-Verify via the actual private HTTPS hostname. Submit a synthetic report with and without attachments and download the files as the test admin. Check the Secure cookie, scanner readiness and blocked access outside the approved network. The proxy must allow at least 21 MiB on `/api/submissions/with-attachments` for base64 encoding. The app keeps a 256 KiB cap on the ordinary API route. Wait for ClamAV to load signatures. If it is unavailable, file submissions return a retryable error and save no report. An external scanner, if used later, belongs on a trusted private connection.
+### Admin accounts and export rights
+
+All four admins (Пресиян, Мартин, Росица, Миглена) see full reports with names, download attachments and export **PDF and Excel**. **CSV** is limited to Пресиян and Мартин and is enforced on the server per account:
+
+```sh
+docker compose --env-file .env.hosted -f docker-compose.hosted.yml exec web python scripts/admin_users.py create --login <login> --name "<име>" --csv   # Пресиян, Мартин
+docker compose --env-file .env.hosted -f docker-compose.hosted.yml exec web python scripts/admin_users.py create --login <login> --name "<име>"         # Росица, Миглена
+docker compose --env-file .env.hosted -f docker-compose.hosted.yml exec web python scripts/admin_users.py allow-csv --login <login>   # or deny-csv later
+```
+
+The web application's database role cannot delete audit rows. To trim old failed/throttled sign-in noise, run `scripts/purge_audit_noise.py --days 90` through the `migrate` service (owner role).
+
+Verify via the actual private HTTPS hostname. Submit a synthetic report with and without attachments and download the files as the test admin. Check the Secure cookie, scanner readiness and blocked access outside the approved network. The proxy must allow at least **67 MiB** (we recommend 72 MiB) request bodies on `/api/submissions/with-attachments` only: ten 5 MiB files become about 66.9 MiB of base64 JSON. Keep the proxy's body limit on every other path small (the app itself caps the ordinary API at 256 KiB and the admin forms at 4 KiB). One full upload needs roughly 350 MiB of RAM in the web container while it is processed, and at most two uploads run at once; a further one gets a retryable 503. Plan at least 4 GiB of free RAM for the whole stack (ClamAV alone wants 3-4 GiB). The app keeps a 256 KiB cap on the ordinary API route. Wait for ClamAV to load signatures. If it is unavailable, file submissions return a retryable error and save no report. An external scanner, if used later, belongs on a trusted private connection.
 
 ## Production switch
 
-- Send the questionnaire and proposed participants for management review. Confirm the employee notice, named collection, four-admin access and retention, including attachments.
-- Publish a new approved questionnaire version. Version 2 is a draft snapshot, so even after approval create a new version with `status: approved` and the confirmed departments. Production refuses a draft at startup and refuses submissions to older draft versions. Set `MIK_QUESTIONNAIRE_VERSION` to the approved version.
+- Management approved the questionnaire and the participant list (as reported by Presiyan, 19 Nov; no written confirmation is in the repository). Still confirm the employee notice, named collection, four-admin access, and the **retention period including attachments** (no automatic deletion is configured until the retention period is confirmed).
+- The approved questionnaire is **version 3** (`questionnaire/daily_report.v3.yaml`, `status: approved`). Version 2 stays as the draft snapshot; production refuses drafts at startup and refuses submissions to older draft versions. `MIK_QUESTIONNAIRE_VERSION=3`.
 - Use a production Compose project and volume separate from the synthetic demo if staging was run on the host. Give production its own private origin or proxy route and a separate port if both stacks will coexist.
 - Create the real admin accounts on production only. Run the host smoke checks and verify a restored backup before enabling employee access.
 
