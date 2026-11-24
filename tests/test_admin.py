@@ -395,3 +395,104 @@ def test_old_noise_in_audit_log_is_purged_but_history_kept(client):
 def test_login_semaphore_limits_concurrent_hashing():
     from app.routes import admin
     assert admin._HASH_SLOTS._value == 2
+
+
+# ---- own password change ---------------------------------------------------------------------------------------
+
+FORM = {"content-type": "application/x-www-form-urlencoded"}
+NEW_PW = "brand new staple 42"
+
+
+def _csrf(html):
+    return html.split('name="csrf" value="')[1].split('"')[0]
+
+
+def change_pw(client, current=PW, new=NEW_PW, repeat=None, csrf=None):
+    csrf = csrf or _csrf(client.get("/admin/password").text)
+    from urllib.parse import urlencode
+    body = urlencode({"csrf": csrf, "current": current, "new": new, "repeat": new if repeat is None else repeat})
+    return client.post("/admin/password", content=body, headers=FORM, follow_redirects=False)
+
+
+def test_password_page_requires_login(client):
+    assert client.get("/admin/password", follow_redirects=False).headers["location"] == "/admin/login"
+    r = client.post("/admin/password", content="csrf=x", headers=FORM, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/admin/login"
+
+
+def test_admin_pages_link_to_password_change(client):
+    make_admin(client)
+    login(client)
+    page = client.get("/admin/password")
+    assert page.status_code == 200 and "Смяна на парола" in page.text
+    assert page.headers["cache-control"] == "no-store"
+    assert 'href="/admin/password"' in client.get("/admin").text
+
+
+def test_change_password_success_rotates_sessions(make_client):
+    a, b = make_client(), None
+    make_admin(a)
+    login(a)
+    # a second browser signed in to the same account
+    from fastapi.testclient import TestClient
+    b = TestClient(a.app)
+    login(b)
+    assert b.get("/admin", follow_redirects=False).status_code == 200
+    old_cookie = a.cookies.get("mik_admin")
+    r = change_pw(a)
+    assert r.status_code == 303 and r.headers["location"] == "/admin/password?done=1"
+    assert a.cookies.get("mik_admin") != old_cookie
+    assert "Паролата е сменена" in a.get("/admin/password?done=1").text
+    assert a.get("/admin", follow_redirects=False).status_code == 200  # this browser stays signed in
+    assert b.get("/admin", follow_redirects=False).status_code == 303  # the other one is signed out
+    a.cookies.clear()
+    assert login(a).status_code == 401  # old password no longer works
+    assert login(a, password=NEW_PW).status_code == 303
+    assert "password_changed" in audit_actions(a)
+    with sf(a)() as db:
+        assert NEW_PW not in auth.get_by_login(db, "martin").password_hash
+
+
+@pytest.mark.parametrize("kw,msg,status", [
+    ({"current": "wrong password here"}, "Текущата парола е грешна", 401),
+    ({"repeat": "something else entirely"}, "не съвпадат", 422),
+    ({"new": "short1", "repeat": "short1"}, "поне 12 знака", 422),
+    ({"new": "aaaaaaaaaaaaaaaa", "repeat": "aaaaaaaaaaaaaaaa"}, "еднообразна", 422),
+    ({"new": PW, "repeat": PW}, "различна от текущата", 422),
+])
+def test_change_password_rejections_keep_old_password(client, kw, msg, status):
+    make_admin(client)
+    login(client)
+    r = change_pw(client, **kw)
+    assert r.status_code == status and msg in r.text
+    client.cookies.clear()
+    assert login(client).status_code == 303  # unchanged
+
+
+def test_change_password_needs_session_csrf(client):
+    make_admin(client)
+    login(client)
+    r = change_pw(client, csrf="wrong")
+    assert r.status_code == 403
+    client.cookies.clear()
+    assert login(client).status_code == 303
+
+
+def test_change_password_cross_site_is_refused(client):
+    make_admin(client)
+    login(client)
+    r = client.post("/admin/password", content="csrf=x&current=a&new=b&repeat=b", follow_redirects=False,
+                    headers={**FORM, "origin": "http://evil.example"})
+    assert r.status_code == 403
+
+
+def test_change_password_is_throttled(client):
+    make_admin(client)
+    login(client)
+    for _ in range(5):
+        assert change_pw(client, current="wrong password here").status_code == 401
+    r = change_pw(client)  # right password is refused while locked
+    assert r.status_code == 429
+    actions = audit_actions(client)
+    assert actions.count("password_change_failed") == 5 and "password_change_throttled" in actions
+    assert "password_changed" not in actions
