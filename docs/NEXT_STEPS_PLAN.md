@@ -24,7 +24,7 @@ JSON, JSONL, CSV with filters (department, date range, questionnaire version), d
 ## Phase 3 — file/photo attachments (needs decisions; design below)
 Wanted by Martin. Sensitive: photos/files can contain people, customer data or metadata.
 Recommended defaults (**Decision** on each):
-- Optional, max 3 files per report, 5 MB each; JPEG, PNG, WebP and PDF only; type checked by file signature, not file name.
+- Optional, up to 10 files per report, 5 MiB each, any company file format (Presiyan, 19 Nov); every file is scanned with ClamAV before the report is saved.
 - Upload as a separate step (`POST /api/attachments`, one file per request, size-capped, same Origin protection), then the report references the returned ids; orphaned uploads are deleted after 24 h.
 - Stored in PostgreSQL (separate table, not in the submissions row) so one backup covers everything and "PostgreSQL is the single source of truth" still holds.
 - Served only to logged-in admins, as a download (`Content-Disposition: attachment`, `nosniff`); no inline preview of PDFs; images re-encoded to strip EXIF/location (adds an image library dependency).

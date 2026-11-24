@@ -4,6 +4,8 @@
     docker compose exec web python scripts/admin_users.py list
     docker compose exec web python scripts/admin_users.py set-password --login martin
     docker compose exec web python scripts/admin_users.py deactivate --login martin
+    docker compose exec web python scripts/admin_users.py allow-csv --login martin     # CSV export (only for two named people)
+    docker compose exec web python scripts/admin_users.py deny-csv --login martin
 
 Passwords are typed at a hidden prompt (never on the command line, never printed or logged).
 At most 4 active admins (see app/admin_auth.py MAX_ADMINS).
@@ -38,8 +40,9 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("create")
     c.add_argument("--login", required=True)
     c.add_argument("--name", required=True, help="display name shown in the panel")
+    c.add_argument("--csv", action="store_true", help="also allow CSV export (PDF and Excel are allowed for everyone)")
     sub.add_parser("list")
-    for name in ("set-password", "deactivate", "activate"):
+    for name in ("set-password", "deactivate", "activate", "allow-csv", "deny-csv"):
         sub.add_parser(name).add_argument("--login", required=True)
     args = ap.parse_args(argv)
 
@@ -49,10 +52,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.cmd == "list":
                 for u in db.scalars(select(AdminUser).order_by(AdminUser.id)):
                     last = u.last_login_at.strftime("%Y-%m-%d %H:%M UTC") if u.last_login_at else "never"
-                    print(f"{u.login:20} {'active' if u.is_active else 'INACTIVE':9} last login: {last:22} {u.display_name}")
+                    print(f"{u.login:20} {'active' if u.is_active else 'INACTIVE':9} csv: {'yes' if u.can_export_csv else 'no':4} last login: {last:22} {u.display_name}")
                 return 0
             if args.cmd == "create":
-                u = auth.create_admin(db, args.login, args.name, ask_password())
+                u = auth.create_admin(db, args.login, args.name, ask_password(), can_export_csv=args.csv)
                 print(f"Created admin '{u.login}'.")
                 return 0
             user = auth.get_by_login(db, args.login)
@@ -70,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
                 auth.end_all_sessions(db, user.id)
                 auth.audit(db, "admin_deactivated", user.id)
                 print("Deactivated and signed out.")
+            elif args.cmd in ("allow-csv", "deny-csv"):
+                user.can_export_csv = args.cmd == "allow-csv"
+                auth.audit(db, "csv_permission_" + ("granted" if user.can_export_csv else "revoked"), user.id)
+                print("CSV export " + ("allowed." if user.can_export_csv else "no longer allowed."))
             elif args.cmd == "activate":
                 active = len(db.scalars(select(AdminUser).where(AdminUser.is_active.is_(True))).all())
                 if active >= auth.MAX_ADMINS:

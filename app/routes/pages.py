@@ -33,7 +33,7 @@ def form_page(request: Request):
     earliest, _ = date_window(today, s.settings.max_backdate_days)
     picker = {
         "today": today.isoformat(),
-        "min": earliest.isoformat(),
+        "min": earliest.isoformat() if earliest else "",
         "today_display": fmt_date(today),
         "hint": backdate_hint(s.settings.max_backdate_days),
     }

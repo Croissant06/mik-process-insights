@@ -8,17 +8,17 @@ import asyncio
 import hmac
 import secrets
 from datetime import date
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import func, select
 
 from app import admin_auth as auth
 from app import questionnaire
-from app.models import QuestionnaireVersion, Submission
+from app.models import QuestionnaireVersion, ReportAttachment, Submission
 
 router = APIRouter(prefix="/admin")
 PAGE_SIZE = 25
@@ -80,7 +80,7 @@ def _current(request: Request):
         if not found:
             return None
         user, sess = found
-        return {"id": user.id, "name": user.display_name}, {"csrf": sess.csrf_token}
+        return {"id": user.id, "name": user.display_name, "csv": bool(user.can_export_csv)}, {"csrf": sess.csrf_token}
 
 
 def _client_key(request: Request, login: str) -> tuple[str, str]:
@@ -119,7 +119,6 @@ async def login_submit(request: Request):
             if auth.needs_rehash(user.password_hash):
                 user.password_hash = await run_in_threadpool(auth.hash_password, password)
                 db.commit()
-            auth.purge_old_audit(db)
             token, _ = auth.start_session(db, user)
             auth.audit(db, "login_ok", user.id)
             resp = _redirect("/admin")
@@ -174,26 +173,14 @@ def _local(dt, tz: str) -> str:
     return auth.aware(dt).astimezone(ZoneInfo(tz)).strftime("%d.%m.%Y %H:%M")
 
 
-@router.get("", response_class=HTMLResponse)
-@router.get("/", response_class=HTMLResponse, include_in_schema=False)
-def report_list(request: Request):
-    cur = _current(request)
-    if not cur:
-        return _redirect("/admin/login")
-    user, sess = cur
-    s = request.app.state
-    q = request.query_params
+def _filters(q) -> tuple:
+    """The report filters shared by the list page and the exports: department, work-date range, questionnaire version."""
     dept = (q.get("department") or "")[:64]
     d_from, d_to = _parse_date(q.get("from")), _parse_date(q.get("to"))
     try:
         version = int(q.get("version", ""))
     except ValueError:
         version = None
-    try:
-        page = max(1, int(q.get("page", "1")))
-    except ValueError:
-        page = 1
-
     stmt = select(Submission)
     if dept:
         stmt = stmt.where(Submission.department_code == dept)
@@ -203,6 +190,25 @@ def report_list(request: Request):
         stmt = stmt.where(Submission.work_date <= d_to)
     if version is not None:
         stmt = stmt.where(Submission.questionnaire_version == version)
+    return stmt, {"department": dept, "d_from": d_from, "d_to": d_to, "version_int": version}
+
+
+@router.get("", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse, include_in_schema=False)
+def report_list(request: Request):
+    cur = _current(request)
+    if not cur:
+        return _redirect("/admin/login")
+    user, sess = cur
+    s = request.app.state
+    q = request.query_params
+    stmt, f = _filters(q)
+    dept, version = f["department"], f["version_int"]
+    d_from, d_to = f["d_from"], f["d_to"]
+    try:
+        page = max(1, int(q.get("page", "1")))
+    except ValueError:
+        page = 1
 
     with s.session_factory() as db:
         total = db.scalar(select(func.count()).select_from(stmt.subquery()))
@@ -260,9 +266,89 @@ def report_detail(request: Request, sid: str):
             else:
                 rows.append({"label": qdef["label"], "text": val or ""})
         auth.audit(db, "view_report", user["id"], f"id={sub.id}")
+        attachments = db.execute(
+            select(ReportAttachment.id, ReportAttachment.filename)
+            .where(ReportAttachment.submission_id == sub.id)
+            .order_by(ReportAttachment.filename, ReportAttachment.id)
+        ).all()
         r = {
             "id": sub.id, "work_date": sub.work_date.strftime("%d.%m.%Y"), "submitted": _local(sub.submitted_at, s.settings.timezone),
             "name": sub.respondent_name or "", "department": depts.get(sub.department_code, sub.department_code),
-            "version": sub.questionnaire_version, "rows": rows,
+            "version": sub.questionnaire_version, "rows": rows, "attachments": attachments,
         }
     return _page(request, "admin_report.html", {"user": user, "csrf": sess["csrf"], "r": r})
+
+
+@router.get("/attachments/{attachment_id}")
+def download_attachment(request: Request, attachment_id: str):
+    cur = _current(request)
+    if not cur:
+        return _redirect("/admin/login")
+    user, _ = cur
+    with request.app.state.session_factory() as db:
+        item = db.get(ReportAttachment, attachment_id) if len(attachment_id) == 36 else None
+        if item is None:
+            return _harden(Response(status_code=404))
+        body = item.content
+        filename = quote(item.filename, safe="")
+        auth.audit(db, "download_attachment", user["id"], f"id={item.id}")
+    return _harden(Response(
+        body, media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    ))
+
+
+# ---- exports ------------------------------------------------------------------------------------------------------
+
+EXPORT_TYPES = {
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
+    "pdf": ("application/pdf", "pdf"),
+    "csv": ("text/csv; charset=utf-8", "csv"),
+}
+
+
+@router.get("/export/{kind}")
+def export_reports(request: Request, kind: str):
+    """PDF and Excel: every admin. CSV: only accounts with can_export_csv. Checked here, on the server, every time."""
+    from app import report_export as rx
+
+    cur = _current(request)
+    if not cur:
+        return _redirect("/admin/login")
+    user, _ = cur
+    if kind not in EXPORT_TYPES:
+        return _harden(Response(status_code=404))
+    s = request.app.state
+    if kind == "csv" and not user["csv"]:
+        with s.session_factory() as db:
+            auth.audit(db, "export_csv_denied", user["id"])
+        return _page(request, "admin_denied.html", {"user": user}, 403)
+    stmt, f = _filters(request.query_params)
+    parts = []
+    if f["department"]:
+        parts.append(f"отдел={f['department']}")
+    if f["d_from"]:
+        parts.append(f"от={f['d_from'].strftime('%d.%m.%Y')}")
+    if f["d_to"]:
+        parts.append(f"до={f['d_to'].strftime('%d.%m.%Y')}")
+    if f["version_int"] is not None:
+        parts.append(f"версия=v{f['version_int']}")
+    filters_text = ", ".join(parts)
+    with s.session_factory() as db:
+        try:
+            table = rx.build_table(db, stmt, s.settings.timezone, filters_text)
+        except rx.ExportTooLarge:
+            return _page(request, "admin_denied.html", {"user": user, "too_large": rx.MAX_EXPORT_ROWS}, 413)
+        auth.audit(db, f"export_{kind}", user["id"], f"n={len(table.rows)} {filters_text}")
+    stamp = _local(auth._now(), s.settings.timezone)
+    if kind == "xlsx":
+        body = rx.to_xlsx(table, stamp)
+    elif kind == "pdf":
+        body = rx.to_pdf(table, stamp)
+    else:
+        body = rx.to_csv(table)
+    mime, ext = EXPORT_TYPES[kind]
+    name = f"otcheti-{auth._now().astimezone(ZoneInfo(s.settings.timezone)).strftime('%Y-%m-%d')}.{ext}"
+    resp = Response(body, media_type=mime)
+    resp.headers["Content-Disposition"] = f'attachment; filename="{name}"'
+    return _harden(resp)

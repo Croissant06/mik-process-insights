@@ -15,7 +15,7 @@ from app.config import Settings
 from app.db import make_engine, make_session_factory
 from app.admin_auth import LoginThrottle
 from app.routes import admin, api, pages
-from app.security import RequestProtectionMiddleware
+from app.security import ErrorGuardMiddleware, RequestProtectionMiddleware, SecurityHeadersMiddleware
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -34,11 +34,15 @@ def create_app(settings: Settings | None = None, *, create_tables: bool = False)
             Base.metadata.create_all(engine)
         with session_factory() as session:
             questionnaire.sync_versions(session, settings.questionnaire_dir)
-            questionnaire.get_active(session, settings.active_questionnaire_version)
+            active = questionnaire.get_active(session, settings.active_questionnaire_version)
+            if settings.environment == "production" and not questionnaire.is_approved(active):
+                raise questionnaire.QuestionnaireError("Production requires an approved questionnaire and department list.")
+            if settings.environment in {"staging", "production"} and active.get("attachments") and not settings.attachment_scan_host:
+                raise questionnaire.QuestionnaireError("Hosted attachments require a configured scanner.")
         yield
         engine.dispose()
 
-    app = FastAPI(title="MIK | Process Insights", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="MIK | Process Insights", lifespan=lifespan, openapi_url=None)
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = session_factory
@@ -52,7 +56,10 @@ def create_app(settings: Settings | None = None, *, create_tables: bool = False)
         RequestProtectionMiddleware,
         allowed_origins=settings.allowed_origins,
         max_body_bytes=settings.max_json_body_bytes,
+        public_origin=settings.public_origin,
     )
+    app.add_middleware(ErrorGuardMiddleware)  # unexpected errors -> generic 500 + sanitized log line
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)  # outermost: headers on every response, 500s too
 
     @app.get("/healthz", include_in_schema=False)
     def healthz(request: Request):

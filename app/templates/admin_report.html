@@ -32,6 +32,12 @@
         {% endif %}
       </div>
     {% endfor %}
+    {% if r.attachments %}
+    <div class="answer">
+      <h3>Прикачени файлове</h3>
+      <ul>{% for file in r.attachments %}<li><a href="/admin/attachments/{{ file.id }}">{{ file.filename }}</a></li>{% endfor %}</ul>
+    </div>
+    {% endif %}
   </div></section>
   {% endif %}
 </div>

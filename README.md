@@ -1,5 +1,7 @@
 # MIK | Process Insights
 
+For an internal company server, see [the hosted deployment checklist](docs/HOSTED_DEPLOYMENT.md).
+
 Вътрешен уеб формуляр „Дневник на работните дейности“ за събиране на доказателства за реалните работни процеси в МИК-БГ (инструмент за откриване на процеси, не за оценка на служители).
 
 Internal discovery tool: employees spend ~5 minutes a day describing tasks, repeated work and obstacles. **Development uses synthetic data only. Do not deploy publicly.** See `docs/PROJECT_STATUS.md` and `docs/DECISIONS.md`. **AI assistants (Claude, ChatGPT): read `docs/AI_HANDOFF.md` at the start of every session and update it after significant changes.**
@@ -17,7 +19,7 @@ Stop with `docker compose down`. **Never add `-v` unless you really want to dele
 
 An older `.env` that still contains `DATABASE_URL=...` keeps working: `DATABASE_URL` wins when set. No volume or schema change is needed.
 
-## Admin panel (read-only)
+## Admin panel (read-only, with exports)
 
 Open **http://127.0.0.1:8000/admin**. Only people created with the script below can sign in (at most 4 active admins, one personal account each, no shared login). Passwords are typed at a hidden prompt, stored as scrypt hashes, never printed or logged.
 
@@ -26,7 +28,10 @@ docker compose exec web python scripts/admin_users.py create --login <login> --n
 docker compose exec web python scripts/admin_users.py list
 docker compose exec web python scripts/admin_users.py set-password --login <login>   # signs the person out everywhere
 docker compose exec web python scripts/admin_users.py deactivate --login <login>
+docker compose exec web python scripts/admin_users.py allow-csv --login <login>      # CSV export; deny-csv takes it away
 ```
+
+Every admin sees full reports (with names), downloads attachments and exports **PDF** and **Excel (.xlsx)** (Bulgarian headings, filterable rows, same filters as the list). **CSV** is only for accounts given `--csv` / `allow-csv` (Пресиян and Мартин); the server checks this on every request. Exports and downloads are written to `admin_audit` (counts and filters only, never names or answers). Employees need no sign-in; they enter a name and a department and may attach up to 10 files of 5 MiB each; any past date is accepted, future dates are not. Hosted setup, proxy limits and backups: `docs/HOSTED_DEPLOYMENT.md`.
 
 Sessions are stored in PostgreSQL (idle timeout 2 h, absolute 12 h), the cookie is `HttpOnly` + `SameSite=Strict`, five failed logins lock a login/IP for 15 minutes, and every sign-in, list and report view is written to `admin_audit`. Set `COOKIE_SECURE=1` whenever the site is served over HTTPS (it defaults to on outside `APP_ENV=dev`, where the app also refuses to start without `ALLOWED_ORIGINS=https://...` and with `COOKIE_SECURE=0`). Passwords use scrypt n=2^17 (128 MiB, ~0.4 s); older hashes are upgraded at the next sign-in. Reports can be filtered by department, date range and questionnaire version. Export is not built yet. Run `docker compose up --build` after pulling: the first start applies migration `0002` (new tables only, existing data untouched).
 

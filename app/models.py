@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, String, false as sa_false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,6 +35,7 @@ class QuestionnaireVersion(Base):
 
 class Submission(Base):
     __tablename__ = "submissions"
+    __table_args__ = (Index("uq_submissions_idempotency_key", "idempotency_key", unique=True),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     questionnaire_version: Mapped[int] = mapped_column(
@@ -47,6 +48,18 @@ class Submission(Base):
     respondent_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     department_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     answers: Mapped[dict] = mapped_column(JsonType, nullable=False)
+    # One key per form fill: a retry with the same key and content never creates a second report.
+    idempotency_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class ReportAttachment(Base):
+    __tablename__ = "report_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
 
 class AdminUser(Base):
@@ -61,6 +74,8 @@ class AdminUser(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # CSV export is allowed only for explicitly named accounts (Presiyan and Martin); PDF/Excel are open to all admins.
+    can_export_csv: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
 
 
 class AdminSession(Base):

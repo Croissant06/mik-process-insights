@@ -1,0 +1,80 @@
+# APPROVED questionnaire (management approved the questions and the participant list, 19 Nov 2026,
+# as reported by Presiyan). Content is identical to the draft snapshot in daily_report.v2.yaml; only
+# `version` and `status` differ. Never edit a version that has been loaded into a database - the app
+# refuses to start if it differs. Make changes in a new version.
+version: 3
+code: daily_report
+status: approved
+attachments: true
+title: Дневник на работните дейности
+estimated_minutes: 5
+notice: >-
+  Целта е да разберем как протича работата и къде можем да я улесним.
+  Това не е оценка на представянето на служителите.
+
+respondent:
+  name:
+    label: Име и фамилия
+    placeholder: Вашето име
+    required: true
+    max_length: 120
+  department:
+    label: Отдел
+    placeholder: Изберете
+    required: true
+
+departments:
+  placeholder: false
+  options:
+    - {code: office, label: "Офис-администрация"}
+    - {code: cad_cam, label: "CAD/CAM"}
+    - {code: cutting, label: "Кроялен участък"}
+    - {code: sewing, label: "Шевен участък / Производство"}
+    - {code: finishing, label: "Довършителен участък"}
+    - {code: warehouse_packaging, label: "Склад и опаковка"}
+
+questions:
+  - id: tasks
+    section: Вашият ден
+    type: textarea
+    label: Основни задачи през деня
+    placeholder: Опишете накратко...
+    required: true
+    max_length: 2000
+
+  - id: recurring
+    type: textarea
+    label: Повтарящи се и отнемащи време дейности
+    help: Посочете приблизително колко време отнемат. Ако няма такива дейности, напишете „Няма“.
+    placeholder: Дейности, приблизително време...
+    required: true
+    max_length: 2000
+
+  - id: obstacles
+    section: Затруднения и предложения
+    type: multi_choice
+    label: Какви затруднения срещнахте?
+    help: Може да изберете повече от един отговор.
+    required: true
+    options:
+      - {code: duplicate_info, label: Дублиране на информация}
+      - {code: waiting, label: Изчакване на информация или одобрение}
+      - {code: manual_repeat, label: Повтарящи се ръчни операции}
+      - {code: tech_problems, label: Проблеми със софтуер или оборудване}
+      - {code: other, label: Други, allows_text: true, text_placeholder: Уточнете накратко...}
+      - {code: none, label: Не съм срещнал/а затруднения, exclusive: true}
+
+  - id: obstacles_detail
+    type: textarea
+    label: Пояснение към затрудненията
+    help: Например какво се е случило и колко време е отнело.
+    placeholder: Какво точно се случи?
+    required: false
+    max_length: 2000
+
+  - id: suggestions
+    type: textarea
+    label: Допълнителна информация и предложения
+    placeholder: Как бихме могли да улесним Вашата работа?
+    required: false
+    max_length: 2000

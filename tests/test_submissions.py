@@ -109,10 +109,10 @@ def test_default_has_no_backdate_limit_but_never_future(make_client, valid_paylo
     freeze_today(monkeypatch, date(2026, 11, 17))
     c = make_client()
     p = valid_payload(c)
-    for ok in ("2026-11-17", "2026-06-01", "2020-01-01"):
+    for ok in ("2026-11-17", "2026-06-01", "2020-01-01", "2019-12-31", "1999-05-05"):
         p["work_date"] = ok
         assert post(c, p).status_code == 201, ok
-    for bad in ("2026-11-18", "2019-12-31", "1926-05-05"):  # future, below the sanity floor
+    for bad in ("2026-11-18", "2027-01-01", "9999-12-31"):  # future dates only; there is no earliest date
         p["work_date"] = bad
         assert "work_date" in post(c, p).json()["errors"], bad
 
@@ -136,12 +136,12 @@ def test_date_picker_uses_server_side_sofia_date(make_client, monkeypatch):
     assert "до 7 дни назад" in html
 
 
-def test_unlimited_picker_exposes_floor_and_no_hint(make_client, monkeypatch):
+def test_unlimited_picker_has_no_earliest_date_and_no_hint(make_client, monkeypatch):
     from datetime import date
 
     freeze_today(monkeypatch, date(2026, 11, 18))
     html = make_client().get("/").text
-    assert 'data-min="2020-01-01"' in html and "дни назад" not in html
+    assert "data-min" not in html and "2020" not in html and "дни назад" not in html
 
 
 def test_picker_defaults_to_sofia_not_utc_day(make_client, monkeypatch):
@@ -233,3 +233,17 @@ def test_management_questionnaire_doc_is_up_to_date():
     root = Path(__file__).resolve().parent.parent
     r = subprocess.run([sys.executable, str(root / "scripts" / "generate_questionnaire_doc.py"), "--check"], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+def test_very_old_valid_dates_are_accepted_when_backdating_is_unlimited(make_client, valid_payload, monkeypatch):
+    from datetime import date
+
+    freeze_today(monkeypatch, date(2026, 11, 19))
+    c = make_client()
+    p = valid_payload(c)
+    for ok in ("2026-11-19", "1990-02-28", "0100-01-01"):
+        p["work_date"] = ok
+        assert post(c, p).status_code == 201, ok
+    for bad in ("2026-11-20", "2026-02-30", "not-a-date"):
+        p["work_date"] = bad
+        assert "work_date" in post(c, p).json()["errors"], bad

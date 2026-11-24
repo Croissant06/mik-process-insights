@@ -27,6 +27,12 @@
     <button class="btn" type="submit">Покажи</button>
   </div></form>
 
+  <div class="export-bar" style="display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center;margin-top:var(--s4)">
+    <span class="muted">Изтегляне (с текущите филтри):</span>
+    <a class="btn btn--secondary" href="/admin/export/xlsx{{ '?' ~ qs if qs }}">Excel (.xlsx)</a>
+    <a class="btn btn--secondary" href="/admin/export/pdf{{ '?' ~ qs if qs }}">PDF</a>
+    {% if user.csv %}<a class="btn btn--secondary" href="/admin/export/csv{{ '?' ~ qs if qs }}">CSV</a>{% endif %}
+  </div>
   <p class="muted" style="margin:var(--s4) 0 0">Общо: {{ total }}. Датата е денят, за който е отчетът; часът е по Европа/София.</p>
   <div class="table-wrap">
     <table class="data">
