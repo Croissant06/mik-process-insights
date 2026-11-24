@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 
 from app import admin_auth as auth
 from app import questionnaire
-from app.models import QuestionnaireVersion, ReportAttachment, Submission
+from app.models import AdminUser, QuestionnaireVersion, ReportAttachment, Submission
 
 router = APIRouter(prefix="/admin")
 PAGE_SIZE = 25
@@ -148,6 +148,84 @@ async def logout(request: Request):
         auth.audit(db, "logout", user["id"])
     resp = _redirect("/admin/login")
     _clear_cookie(request, resp)
+    return resp
+
+
+# ---- own password -------------------------------------------------------------------------------------------------
+
+PASSWORD_MESSAGES = {
+    "wrong": "Текущата парола е грешна.",
+    "mismatch": "Новата парола и повторението не съвпадат.",
+    "same": "Новата парола трябва да е различна от текущата.",
+    "short": f"Новата парола трябва да е поне {auth.MIN_PASSWORD_LENGTH} знака.",
+    "weak": "Новата парола е твърде еднообразна. Използвайте по-разнообразни знаци.",
+    "throttled": "Твърде много опити. Опитайте по-късно.",
+    "expired": "Страницата е изтекла. Опитайте отново.",
+}
+
+
+def _password_page(request: Request, user: dict, csrf: str, error: str | None = None, done: bool = False,
+                   status: int = 200):
+    return _page(request, "admin_password.html",
+                 {"user": user, "csrf": csrf, "error": error, "done": done, "min_len": auth.MIN_PASSWORD_LENGTH}, status)
+
+
+@router.get("/password", response_class=HTMLResponse)
+def password_form(request: Request):
+    cur = _current(request)
+    if not cur:
+        return _redirect("/admin/login")
+    user, sess = cur
+    return _password_page(request, user, sess["csrf"], done=request.query_params.get("done") == "1")
+
+
+@router.post("/password", response_class=HTMLResponse)
+async def password_submit(request: Request):
+    """Signed-in admin changes their own password: current password, new one twice. All other sessions end."""
+    cur = _current(request)
+    if not cur:
+        return _redirect("/admin/login")
+    user, sess = cur
+    s = request.app.state
+    form = await _form(request)
+    if not hmac.compare_digest(form.get("csrf", ""), sess["csrf"]):
+        return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["expired"], status=403)
+    current, new, repeat = (form.get(k, "")[:256] for k in ("current", "new", "repeat"))
+    key = f"password:{user['id']}"
+    throttle = s.login_throttle
+    if throttle.locked_for(key):
+        return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["throttled"], status=429)
+    if new != repeat:
+        return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["mismatch"], status=422)
+    if len(new) < auth.MIN_PASSWORD_LENGTH:
+        return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["short"], status=422)
+    try:
+        auth.check_password_strength(new)
+    except auth.AdminError:
+        return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["weak"], status=422)
+    if new == current:
+        return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["same"], status=422)
+
+    with s.session_factory() as db:
+        row = db.get(AdminUser, user["id"])
+        async with _HASH_SLOTS:
+            ok = await run_in_threadpool(auth.verify_password, current, row.password_hash)
+        if not ok:
+            locked = throttle.failure(key)
+            auth.audit(db, "password_change_failed", user["id"])
+            if locked:
+                auth.audit(db, "password_change_throttled", user["id"])
+            return _password_page(request, user, sess["csrf"], PASSWORD_MESSAGES["wrong"], status=401)
+        throttle.success(key)
+        async with _HASH_SLOTS:
+            row.password_hash = await run_in_threadpool(auth.hash_password, new)
+        db.commit()
+        # every session of this account ends (other browsers too); this browser gets a fresh one
+        auth.end_all_sessions(db, row.id)
+        token, _ = auth.start_session(db, row)
+        auth.audit(db, "password_changed", row.id)
+    resp = _redirect("/admin/password?done=1")
+    _set_cookie(request, resp, token)
     return resp
 
 

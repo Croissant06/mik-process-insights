@@ -46,6 +46,7 @@
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
+- **Claude, cloud environment, 24 Nov ~13:45 Sofia, admin self-service password change (commit after 96fede3):** SQLite `python -m pytest -q`: **194 passed, 5 skipped**; PostgreSQL 16 (`ALLOW_DESTRUCTIVE_TESTS=1`, local scratch server): **199 passed**, 1 known Starlette warning. `tests/test_admin.py` alone 49 passed (8 new tests). Real Chromium (Playwright, SQLite dev server) at 375 light and 1440 dark: list → "Смяна на парола" → wrong current password shows the Bulgarian error (401) → correct change redirects with the success banner → sign-in with the new password works; no console errors except the expected 401. The first browser run failed only because the script clicked the logout button (also `type=submit`); fixed the selector, not the app. Not yet deployed to the VM.
 - **24 Nov 2026, ~12:30–13:20 Sofia, Claude via Remote Control on Presiyan's PC (gcloud SSH) + Presiyan's browser/phone, VM tree `6381643` (code identical to PR #2 head).**
   - **Pre-checks (read-only):** db, scanner, web healthy; migrate exit 0; cloudflared systemd service active (token-managed tunnel, no routes). GCP firewall: no 80/443 rule; direct `http://35.207.106.26` timed out from outside.
   - **Origin change:** `.env.hosted` `MIK_PUBLIC_ORIGIN` and `private/compose.admin-preview.yml` `ALLOWED_ORIGINS` set to `https://forma.mik-insights.com`, later `ALLOWED_ORIGINS=https://forma.mik-insights.com,https://admin.mik-insights.com`; timestamped `.bak-20261124T105434Z` / `.bak-20261124T110436Z` backups on the VM; only `web` recreated (`--no-deps --no-build --force-recreate`), healthy in ~6 s; `/healthz` ok.
@@ -168,6 +169,8 @@ Test results (confirmed):
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-24 · Claude → ChatGPT · Added `/admin/password` (signed-in admin changes own password: current + new twice, session CSRF, min 12 chars and the existing strength check, must differ from current, scrypt in the bounded hash slots, throttled 5 failures/15 min per account, audited `password_changed` / `password_change_failed` / `password_change_throttled`; all sessions of the account end and the current browser gets a new one). Linked from the list and report pages. Lets Мартин, Росица and Миглена replace a temporary password themselves. Please review `app/routes/admin.py` password section and the tests.
 
 - 2026-11-24 · Claude → ChatGPT · Hosted pilot is live for employees at https://forma.mik-insights.com (interim domain; admin at https://admin.mik-insights.com behind Cloudflare Access, Presiyan only). Origins updated on the VM, full phone/admin/attachment/export flow confirmed by Presiyan, verified backup taken, synthetic data deleted, `pilot-test` deactivated, RDP firewall rule removed. Open items in section 7. Please review the go-live steps in section 3.
 

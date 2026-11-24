@@ -4,6 +4,7 @@
 .admin-bar form { margin: 0; }
 .admin-bar .btn { width: auto; min-height: 40px; padding: 0 var(--s4); }
 .who { color: var(--text-muted); font-size: .95rem; }
+.who a { color: inherit; }
 .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s3); align-items: end; }
 .filters .btn { min-height: 44px; }
 .table-wrap { overflow-x: auto; margin-top: var(--s4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }

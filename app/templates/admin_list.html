@@ -6,7 +6,7 @@
   <div class="admin-bar">
     <h1 style="margin:0">Подадени отчети</h1>
     <form method="post" action="/admin/logout" class="who">
-      {{ user.name }} · <input type="hidden" name="csrf" value="{{ csrf }}">
+      {{ user.name }} · <a href="/admin/password">Смяна на парола</a> · <input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="btn btn--secondary" type="submit">Изход</button>
     </form>
   </div>
