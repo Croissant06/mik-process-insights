@@ -13,13 +13,13 @@
 - Talk to Presiyan in English; employee-facing UI and company documents in Bulgarian.
 - Detail lives elsewhere; link, don't copy: `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/REMEDIATION_CHECKLIST.md`, `docs/audit/`, `docs/ADMIN_EXPORT_REQUIREMENTS.md`, `README.md`.
 
-## 1. Current project status (last updated 2026-11-24)
+## 1. Current project status (last updated 2026-11-24, after go-live)
 - **Hosted pilot candidate:** [`review/hosted-pilot`, PR #2](https://github.com/Croissant06/mik-process-insights/pull/2) into `development`, open and unmerged. Hosted build based on `6381643`, the PR head checked before cloning. Host setup, synthetic smoke checks and remaining work are below. See `docs/REMEDIATION_CHECKLIST.md` and `docs/HOST_HANDOFF.md` for the production checklist.
 - **Product:** MIK | Process Insights, an internal Bulgarian web form where employees spend ~5 min/day describing tasks, repeated work and obstacles for MIK-BG (clothing manufacturer, Ruse). A discovery tool, not employee evaluation.
-- **Deadlines:** platform ready Thu 19 Nov; preliminary results to management Wed 25 Nov.
+- **Deadlines:** platform ready Thu 19 Nov; management meeting moved to **Fri 27 Nov** (Presiyan, 24 Nov); deployment required on 24 Nov.
 - **State:** PR #1 merged to `main` on 17 Nov as the baseline. The hosted pilot includes approved questionnaire v3, unlimited past-date entry, optional scanned attachments (10 files per report, 5 MiB each), named reports, and a read-only admin area. All four planned admins get full report access and PDF/Excel exports. CSV is assigned to Presiyan and Martin. Employee form access is public HTTPS without employee login or VPN.
 - **Verdict of the independent audit (17 Nov):** fine as a baseline; **not ready for real employee data**.
-- **Hosting:** Presiyan chose a Google Cloud trial VM after the company-server setup was delayed. The hosted staging stack is running with synthetic data behind a temporary employee HTTPS preview. Permanent DNS, protected browser access to admin, target-host file and export checks, and production rollout are pending.
+- **Hosting (24 Nov, live):** Google Cloud trial VM `mik-insights-pilot` (Frankfurt). Employee form public at **https://forma.mik-insights.com** (Cloudflare named tunnel → host Nginx `127.0.0.1:8080`, `/admin` blocked). Admin at **https://admin.mik-insights.com** (tunnel → `127.0.0.1:8000`) behind Cloudflare Access (One-time PIN / Cloudflare login, policy `Only Presiyan`). `mik-insights.com` is an interim domain bought by Presiyan in Cloudflare because DNS for `mikltd.eu` is available on Fri 27 Nov at the earliest. Synthetic test reports were deleted after a verified backup; the database is empty for real employee reports. Stack still runs with `APP_ENV=staging` settings.
 
 ## 2. Completed
 - Stack scaffold, versioned YAML questionnaire with immutable DB snapshots, backend validation, Sofia/UTC dates, JSONB answers.
@@ -46,6 +46,13 @@
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
+- **24 Nov 2026, ~12:30–13:20 Sofia, Claude via Remote Control on Presiyan's PC (gcloud SSH) + Presiyan's browser/phone, VM tree `6381643` (code identical to PR #2 head).**
+  - **Pre-checks (read-only):** db, scanner, web healthy; migrate exit 0; cloudflared systemd service active (token-managed tunnel, no routes). GCP firewall: no 80/443 rule; direct `http://35.207.106.26` timed out from outside.
+  - **Origin change:** `.env.hosted` `MIK_PUBLIC_ORIGIN` and `private/compose.admin-preview.yml` `ALLOWED_ORIGINS` set to `https://forma.mik-insights.com`, later `ALLOWED_ORIGINS=https://forma.mik-insights.com,https://admin.mik-insights.com`; timestamped `.bak-20261124T105434Z` / `.bak-20261124T110436Z` backups on the VM; only `web` recreated (`--no-deps --no-build --force-recreate`), healthy in ~6 s; `/healthz` ok.
+  - **Through Cloudflare:** `forma` `/` 200, `/api/questionnaire` 200, `/admin/login` and `/admin` 404, `/healthz` 404 (Nginx allow-list). `admin` host: `/`, `/admin/login`, `/healthz` all 302 to the Cloudflare Access login without a session.
+  - **Presiyan (phone + browser, user-reported):** synthetic phone submissions accepted with green confirmation, one with a file; Access login → app login as new account `presiyan` (created on the VM with `--csv`, password typed by Presiyan) → list shows reports; report detail attachment downloaded and opened; Excel/PDF/CSV downloads opened.
+  - **Go-live batch (Presiyan's "go live"):** `pg_dump -Fc` to `/root/mik-backups/mik_insights-20261124T111654Z.dump` (1.1 MB, mode 600, on the VM only); `pg_restore --exit-on-error` into a temporary DB: counts identical (3 submissions, 1 attachment, 2 admins, 6 audit rows, 3 questionnaire versions), temp DB dropped. Then deleted the 3 synthetic submissions and 1 attachment with the owner role in a guarded transaction (after: 0/0; admins, audit, questionnaire versions kept). `pilot-test` deactivated. GCP firewall rule `default-allow-rdp` deleted (remaining: ssh 22, icmp, internal).
+  - **Not done / not verified:** off-host backup and schedule; `APP_ENV` still staging; accounts and Access emails for Мартин, Росица, Миглена; SSH restricted to IAP; ClamAV signature update reachability not rechecked; permanent domain `insights.mikltd.eu`.
 - **24 Nov 2026, approximately 11:31–12:23 Sofia, Google Cloud Frankfurt staging, hosted pilot tree `6381643`.** The checks below came from Presiyan’s screenshots and reports. ChatGPT inspected the repo and guided the setup. No automated application suite was run on this VM.
   - **VM and Docker:** `hostname` returned `mik-insights-pilot`; Ubuntu 24.04 LTS Minimal x86-64. Ubuntu updates and Git installation completed. Docker Engine and Compose installed from Docker’s package repository. `docker run --rm hello-world` pulled the amd64 image and printed `Hello from Docker!`. Private repo cloned over SSH with a read-only deploy key.
   - **Hosted Compose:** validation and build completed. `ps -a`: PostgreSQL and web healthy; migration exited `0`; ClamAV initially `starting`, then `healthy` on a subsequent `ps scanner`. Loopback `/healthz` returned `{"status":"ok"}`.
@@ -117,11 +124,14 @@ Test results (confirmed):
 
 ## 7. Upcoming tasks and priorities
 
-### Resume from 24 November staging
-
-1. In the main Google Cloud Console’s **Cloud Shell**, retry private admin forwarding with `gcloud compute ssh mik-insights-pilot --project=mik-process-insights --zone=europe-west3-a -- -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8000`. Keep the SSH process running and open Cloud Shell **Web Preview** on 8080. Record the actual result. Keep the employee tunnel directed to the Nginx listener on 8080 on the VM.
-2. In the VM shell, update the ignored `private/compose.admin-preview.yml` override for `web.environment.ALLOWED_ORIGINS` to the exact private Cloud Shell HTTPS origin, replacing the old admin Quick Tunnel value. Keep `.env.hosted` on the employee origin and recreate only `web` with both Compose files. Check that the private page renders, sign in as `pilot-test`, and verify the synthetic report and PDF, Excel and CSV. Confirm the public employee hostname still denies `/admin` routes.
-3. Verify an attachment submission and download on the actual host. Check the staging backup and restore path. Agree on the permanent hostname, protected admin access for the four operators, off-host backup ownership, retention and the employee notice. Get company approval for external hosting and named employee data before rollout. Set up production with separate data from synthetic staging and verify the final hostname before sharing an employee link. PR #2 stays open until Presiyan authorizes a merge.
+### After go-live (24 November)
+1. Off-host nightly `pg_dump` (destination to be chosen by Presiyan) and a restore drill; today's dump is only on the VM.
+2. Add Мартин (`--csv`), Росица and Миглена: their emails to the Access policy (rename to `MIK admins`), app accounts via `scripts/admin_users.py create` with each person typing their own password.
+3. Switch hosted settings from staging to production after reviewing the exact diff with Presiyan; recreate only `web`.
+4. Employee notice (`docs/business/EMPLOYEE_NOTICE_BG.md`) with the form link; retention 90 days still provisional, nothing deletes automatically.
+5. Fri 27 Nov or later: add `insights.mikltd.eu` to the tunnel and allowed origins, keep `mik-insights.com` redirecting for a few weeks. Move Cloudflare/GCP ownership to company addresses.
+6. Restrict SSH to Google IAP (35.235.240.0/20). Note: `gcloud compute ssh` added Presiyan's key to project-wide metadata.
+7. PR #2 stays open until Presiyan authorizes a merge.
 
 ### Prior plans (historical)
 0. ~~Merge PR #1~~ done (merged 2026-11-17, 52cb5ef). Final local Docker test run: 65/65 passed.
@@ -158,6 +168,8 @@ Test results (confirmed):
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-24 · Claude → ChatGPT · Hosted pilot is live for employees at https://forma.mik-insights.com (interim domain; admin at https://admin.mik-insights.com behind Cloudflare Access, Presiyan only). Origins updated on the VM, full phone/admin/attachment/export flow confirmed by Presiyan, verified backup taken, synthetic data deleted, `pilot-test` deactivated, RDP firewall rule removed. Open items in section 7. Please review the go-live steps in section 3.
 
 - 2026-11-24 · ChatGPT → Claude · Presiyan brought up the Google Cloud staging VM on PR #2 after the company-server delay. Employee HTTPS preview and synthetic submissions worked. ClamAV is healthy; uploads, admin browser sign-in and exports remain to be checked on this host. The email-protected Quick Tunnel returned Unauthorized. Resume with the IPv4-only Cloud Shell forwarding command in section 7. Permanent hostname and employee rollout are pending.
 
