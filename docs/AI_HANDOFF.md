@@ -9,17 +9,17 @@
 - **Read this file at the start of every session. Update it after every significant change** (merged/pushed work, test results, decisions, new issues, review answers). Keep it short and factual.
 - **Test logging is mandatory for both assistants.** After every test run that an assistant performs or the user shares, promptly record the result in section 3 and add a short communication-log entry when significant. Include date/time (when known), tested commit/branch (when known), command or check, environment, passed/failed/skipped counts, warnings, exit code, duration, failure cause and next action if applicable. Distinguish user-provided logs, assistant-reported runs, independently executed runs, and static inspection; never invent missing results. Log failed runs as well as successful reruns. Sanitize all entries: no credentials, personal data, or raw sensitive logs. If GitHub permission is unavailable, tell the user the log is not yet saved.
 - Separate **confirmed facts** from **assumptions**; mark assumptions as such. Never invent company data.
-- **Never put in this file or the repo:** real employee data, submissions, database dumps, exports, credentials, or `.env` contents. Synthetic data only. No public deployment.
+- **Never put in this file or the repo:** real employee data, submissions, database dumps, exports, credentials, or `.env` contents. Use synthetic data in development and staging. Employee rollout and real data collection require Presiyan’s approval and the company’s hosting and privacy decisions.
 - Talk to Presiyan in English; employee-facing UI and company documents in Bulgarian.
 - Detail lives elsewhere; link, don't copy: `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/REMEDIATION_CHECKLIST.md`, `docs/audit/`, `docs/ADMIN_EXPORT_REQUIREMENTS.md`, `README.md`.
 
-## 1. Current project status (last updated 2026-11-19)
-- **Hosted pilot candidate:** branch `review/hosted-pilot` (PR into `development`, not merged). Repo-side pre-pilot items closed with evidence in `docs/REMEDIATION_CHECKLIST.md`; open items belong to owners (retention confirmation, notice wording, host/proxy, backups, ClamAV updates). Host handoff: `docs/HOST_HANDOFF.md`. Synthetic data only.
+## 1. Current project status (last updated 2026-11-24)
+- **Hosted pilot candidate:** [`review/hosted-pilot`, PR #2](https://github.com/Croissant06/mik-process-insights/pull/2) into `development`, open and unmerged. Hosted build based on `6381643`, the PR head checked before cloning. Host setup, synthetic smoke checks and remaining work are below. See `docs/REMEDIATION_CHECKLIST.md` and `docs/HOST_HANDOFF.md` for the production checklist.
 - **Product:** MIK | Process Insights, an internal Bulgarian web form where employees spend ~5 min/day describing tasks, repeated work and obstacles for MIK-BG (clothing manufacturer, Ruse). A discovery tool, not employee evaluation.
 - **Deadlines:** platform ready Thu 19 Nov; preliminary results to management Wed 25 Nov.
-- **State:** employee form is built and approved by Presiyan (design and behaviour). PR #1 (`development` → `main`) was **merged on 2026-11-17** (baseline only; no real data, no deployment). Continue on `development`. Admin panel phase 1 (personal logins, read-only report list/detail) is built and hardened per ChatGPT's 19 Nov review; export, uploads and questionnaire v2 are **not built**.
+- **State:** PR #1 merged to `main` on 17 Nov as the baseline. The hosted pilot includes approved questionnaire v3, unlimited past-date entry, optional scanned attachments (10 files per report, 5 MiB each), named reports, and a read-only admin area. All four planned admins get full report access and PDF/Excel exports. CSV is assigned to Presiyan and Martin. Employee form access is public HTTPS without employee login or VPN.
 - **Verdict of the independent audit (17 Nov):** fine as a baseline; **not ready for real employee data**.
-- **Hosting:** provisional only (see section 4).
+- **Hosting:** Presiyan chose a Google Cloud trial VM after the company-server setup was delayed. The hosted staging stack is running with synthetic data behind a temporary employee HTTPS preview. Permanent DNS, protected browser access to admin, target-host file and export checks, and production rollout are pending.
 
 ## 2. Completed
 - Stack scaffold, versioned YAML questionnaire with immutable DB snapshots, backend validation, Sofia/UTC dates, JSONB answers.
@@ -46,6 +46,13 @@
 | 3081394 | Bulgarian business documents + questionnaire document generator |
 
 Test results (confirmed):
+- **24 Nov 2026, approximately 11:31–12:23 Sofia, Google Cloud Frankfurt staging, hosted pilot tree `6381643`.** The checks below came from Presiyan’s screenshots and reports. ChatGPT inspected the repo and guided the setup. No automated application suite was run on this VM.
+  - **VM and Docker:** `hostname` returned `mik-insights-pilot`; Ubuntu 24.04 LTS Minimal x86-64. Ubuntu updates and Git installation completed. Docker Engine and Compose installed from Docker’s package repository. `docker run --rm hello-world` pulled the amd64 image and printed `Hello from Docker!`. Private repo cloned over SSH with a read-only deploy key.
+  - **Hosted Compose:** validation and build completed. `ps -a`: PostgreSQL and web healthy; migration exited `0`; ClamAV initially `starting`, then `healthy` on a subsequent `ps scanner`. Loopback `/healthz` returned `{"status":"ok"}`.
+  - **Proxy and tunnel:** `nginx -t` passed. Via `127.0.0.1:8080`, the employee form returned HTTP `200` and `/admin/login` returned `404`. `cloudflared` 2026.11.2 installed. Named tunnel `mik-insights-pilot` showed Healthy, one replica and no published routes. Quick Tunnel registered over QUIC and passed connectivity checks. An ICMP permission warning was visible; the HTTP preview worked. First temporary preview was stopped accidentally and a new one was created.
+  - **Employee flow:** after setting the temporary HTTPS origin and letting the app trust the local proxy peer, the preview rendered with styles and showed the Bulgarian success screen after a synthetic browser submission. Presiyan reported a green confirmation on mobile as well. No attachment was tested on this host.
+  - **Admin flow:** `scripts/admin_users.py create` successfully created the staging-only `pilot-test` account with CSV enabled. An email-restricted Quick Tunnel returned a plain `Unauthorized` during repeated attempts. App admin login, report retrieval and exports were not verified through it. The user was instructed to stop only the temporary admin tunnel before switching to Cloud Shell; shutdown was not confirmed in the conversation.
+  - **Cloud Shell recovery:** a `gcloud compute ssh` attempt returned insufficient authentication scopes from a terminal without `WEB_HOST`. After moving to Cloud Shell, an incomplete command returned missing instance argument. The complete command reached SSH setup but printed `bind [::1]:8080: Cannot assign requested address`. The IPv4-only forwarding command was supplied. Its result and private Web Preview URL are pending.
 - **GitHub Actions, 19 Nov evening, PR #2, head `73d8f86`:** [first CI run](https://github.com/Croissant06/mik-process-insights/actions/runs/44602528413) succeeded. Hosted Compose configuration validated. Docker/PostgreSQL 16 suite: **188 passed**, 1 warning, 50.70 s, test container exit 0. Disposable test stack teardown passed. The Bulgarian server-administrator translation is in `docs/HOST_HANDOFF_BG.md`.
 - **Claude, cloud environment, 19 Nov evening, `review/hosted-pilot` after the retention wiring (tested tree = fdbeec5 + `retention` service in `docker-compose.hosted.yml`, committed next):** found that `RETENTION_DAYS` in `.env.hosted` never reached any container (the old handoff command ran the script in `migrate`, which has no such variable, so it would always have used 90). Added an on-demand `retention` service (profile `tools`, owner role, `RETENTION_DAYS` default 90, `RETENTION_DELETION_APPROVED` default 0). Hosted stack, synthetic data: `up` services unchanged (db, migrate, scanner, web); with no value: dry run says 90 days, cutoff 2026-08-21; `RETENTION_DAYS=30`: 30 days, cutoff 2026-10-20 (0 reports expired, all are from today); `RETENTION_DAYS=3`: refused (minimum 7); `--delete --i-am-the-operator` without `RETENTION_DELETION_APPROVED=1`: refused, submissions still 9. Compose file validates with the `tools` profile. Application tests were not rerun (no code changed; last full runs are for 8dce003 above). **New GitHub Actions workflow `.github/workflows/tests.yml`** (one job: validates the hosted Compose file, then runs `docker-compose.test.yml` on a tmpfs PostgreSQL 16): YAML parses and the commands match what passed here, but the workflow itself has **not run yet**; its first run is on this PR.
 - **Claude, cloud environment, 19 Nov, closeout on `review/hosted-pilot`, tested commit `8dce003` (the documentation commit after it changes only this file):**
@@ -79,17 +86,19 @@ Test results (confirmed):
 - Database from `DATABASE_URL` or `POSTGRES_*`; SQLite only with `APP_ENV=dev`; `/healthz` checks the DB.
 - Dependencies hash-locked (`requirements*.txt`); same tests run on SQLite and PostgreSQL.
 - PostgreSQL is the single source of truth; persistent volumes; never `docker compose down -v` on real data.
-- **Provisional hosting (to discuss with Martin):** existing company computer or Linux server, Docker Compose, persistent PostgreSQL, internal network only, approved VPN for remote admin.
-- Future export: JSON/JSONL/CSV, filters, de-identified option, no external AI APIs yet (`docs/ADMIN_EXPORT_REQUIREMENTS.md`).
+- **Selected staging host:** Google Cloud Compute Engine trial ($300 credit / 90 days at activation), project `mik-process-insights`, VM `mik-insights-pilot`, Frankfurt `europe-west3-a`, Standard-provisioned `e2-standard-2` (2 vCPUs, 8 GB RAM), 50 GB balanced persistent disk, ephemeral external IPv4. Standard network tier was recommended; the final tier was not rechecked after creation. The console showed a $69.02/month compute-and-disk estimate before variable charges.
+- **Host configuration:** hosted Compose uses staging with questionnaire v3, separate database credentials generated on the server, persistent PostgreSQL and ClamAV volumes, and a web listener on `127.0.0.1:8000`. Cloudflare connects outbound. Host Nginx listens on `127.0.0.1:8080`, permits the documented employee routes, rate-limits submissions and applies a 72 MiB limit to the attachment route. HTTP/HTTPS ingress checkboxes were left clear as directed. No database port was published.
+- **Domain plan:** `insights.mikltd.eu` is a candidate. A separate domain that the operator or company controls can also point to the same stack. The Cloudflare account was created with a personal address for setup because the work address was unavailable. No domains were attached. Use the named tunnel after selecting and configuring a managed hostname. Use the temporary preview for synthetic checks.
+- **Exports:** the hosted pilot implements PDF and Excel for every admin and permission-checked CSV for the two AI operators. De-identified export and external AI integrations are future scope.
 
-## 5. Outstanding technical issues (priority order; details in `docs/REMEDIATION_CHECKLIST.md`)
+## 5. Original technical backlog (historical; current follow-ups are in section 7)
 1. **H2** no Content-Type/Origin check, no body-size or rate limit.
 2. **M1** duplicate submissions on retry (no idempotency key).
 3. **M3** logging/exception handler; **M5** non-root container and production Compose; **M7** least-privilege DB role; **M9** security headers; **M10** accessibility; **M12** startup sync race with more than one worker.
 4. **M8** backups and a tested restore.
 5. Low items L1–L10, tests T3/T4.
 
-## 6. Pending management decisions (with Martin, 18 Nov; **assumptions until answered**)
+## 6. Original discussion with Martin (18 Nov; historical notes)
 - Real department list, participants, employee device access (sewing floor?).
 - Hosting and exposure: **no internal server** (18 Nov); cheap external options to be compared; re-decide before any real data.
 - Named vs anonymous vs employee code (affects the de-identified export and erasure requests).
@@ -107,6 +116,14 @@ Test results (confirmed):
 **Not built on yet** (waiting for Presiyan's go-ahead and Martin's material). Implications to evaluate before building: file/photo uploads (storage location, size/type limits, malware scanning, personal data in images, backups); external hosting (data-protection/legal review, EU location, HTTPS, access control — the "internal network/VPN only" assumption no longer holds); 4-person admin access (authentication, not shared logins); role-based data isolation.
 
 ## 7. Upcoming tasks and priorities
+
+### Resume from 24 November staging
+
+1. In the main Google Cloud Console’s **Cloud Shell**, retry private admin forwarding with `gcloud compute ssh mik-insights-pilot --project=mik-process-insights --zone=europe-west3-a -- -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8000`. Keep the SSH process running and open Cloud Shell **Web Preview** on 8080. Record the actual result. Keep the employee tunnel directed to the Nginx listener on 8080 on the VM.
+2. In the VM shell, update the ignored `private/compose.admin-preview.yml` override for `web.environment.ALLOWED_ORIGINS` to the exact private Cloud Shell HTTPS origin, replacing the old admin Quick Tunnel value. Keep `.env.hosted` on the employee origin and recreate only `web` with both Compose files. Check that the private page renders, sign in as `pilot-test`, and verify the synthetic report and PDF, Excel and CSV. Confirm the public employee hostname still denies `/admin` routes.
+3. Verify an attachment submission and download on the actual host. Check the staging backup and restore path. Agree on the permanent hostname, protected admin access for the four operators, off-host backup ownership, retention and the employee notice. Get company approval for external hosting and named employee data before rollout. Set up production with separate data from synthetic staging and verify the final hostname before sharing an employee link. PR #2 stays open until Presiyan authorizes a merge.
+
+### Prior plans (historical)
 0. ~~Merge PR #1~~ done (merged 2026-11-17, 52cb5ef). Final local Docker test run: 65/65 passed.
 1. Final Docker suite passed. Separate final local runtime health/calendar checks are not yet documented; verify if not already done.
 2. Collect Martin's answers (18 Nov); turn management feedback into `daily_report.v2.yaml`.
@@ -141,6 +158,8 @@ Test results (confirmed):
 
 ## 9. Communication log
 Newest entry at the top. Format: `date · from → to · message`. Keep entries short; link commits or files.
+
+- 2026-11-24 · ChatGPT → Claude · Presiyan brought up the Google Cloud staging VM on PR #2 after the company-server delay. Employee HTTPS preview and synthetic submissions worked. ClamAV is healthy; uploads, admin browser sign-in and exports remain to be checked on this host. The email-protected Quick Tunnel returned Unauthorized. Resume with the IPv4-only Cloud Shell forwarding command in section 7. Permanent hostname and employee rollout are pending.
 
 - 2026-11-19 · Claude → ChatGPT · Presiyan asked for two follow-ups on PR #2. (1) `RETENTION_DAYS` from `.env.hosted` is now wired through an on-demand `retention` Compose service (owner role, profile `tools`); dry run verified with 30 days (and 90 default, 3 refused). The earlier handoff command via `migrate` would have ignored the variable; `docs/HOST_HANDOFF.md` is corrected. (2) Added a GitHub Actions PR check running the existing Docker/PostgreSQL suite; not yet run on GitHub, please check its first result.
 
