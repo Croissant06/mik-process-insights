@@ -83,9 +83,19 @@ def _current(request: Request):
         return {"id": user.id, "name": user.display_name, "csv": bool(user.can_export_csv)}, {"csrf": sess.csrf_token}
 
 
+def _client_ip(request: Request) -> str:
+    """The visitor's address for login throttling. Behind a trusted proxy (settings.client_ip_header) the proxy's
+    header is used, so one person's failed logins do not lock out everyone who arrives through the same tunnel."""
+    header = request.app.state.settings.client_ip_header
+    if header:
+        value = request.headers.get(header, "").split(",")[0].strip()[:64]
+        if value:
+            return value
+    return request.client.host if request.client else "?"
+
+
 def _client_key(request: Request, login: str) -> tuple[str, str]:
-    ip = request.client.host if request.client else "?"
-    return f"ip:{ip}", f"login:{login.strip().lower()[:64]}"
+    return f"ip:{_client_ip(request)}", f"login:{login.strip().lower()[:64]}"
 
 
 # ---- login / logout ---------------------------------------------------------------------------------------------

@@ -382,6 +382,39 @@ def test_lockout_is_audited_once_and_unknown_names_are_not(client):
     assert login(client, user="martin").status_code == 429  # same IP is locked
 
 
+def test_trusted_ip_header_keeps_one_visitors_lockout_from_blocking_others(make_client):
+    """Behind the Cloudflare tunnel every request comes from the same local address; the tunnel's
+    CF-Connecting-IP header tells visitors apart, so one person's wrong passwords do not lock out every admin."""
+    c = make_client(client_ip_header="CF-Connecting-IP")
+    make_admin(c)
+    make_admin(c, login="rosica", name="Росица Тест")
+    for _ in range(6):
+        token = login_token(c)
+        c.post("/admin/login", content=f"csrf={token}&login=nobody&password=wrong-wrong-wrong", follow_redirects=False,
+               headers={"content-type": "application/x-www-form-urlencoded", "cookie": f"mik_login_csrf={token}",
+                        "CF-Connecting-IP": "203.0.113.7"})
+    token = login_token(c)
+    blocked = c.post("/admin/login", content=f"csrf={token}&login=rosica&password={PW}", follow_redirects=False,
+                     headers={"content-type": "application/x-www-form-urlencoded", "cookie": f"mik_login_csrf={token}",
+                              "CF-Connecting-IP": "203.0.113.7"})
+    assert blocked.status_code == 429  # the visitor who guessed is locked
+    token = login_token(c)
+    other = c.post("/admin/login", content=f"csrf={token}&login=rosica&password={PW}", follow_redirects=False,
+                   headers={"content-type": "application/x-www-form-urlencoded", "cookie": f"mik_login_csrf={token}",
+                            "CF-Connecting-IP": "198.51.100.20"})
+    assert other.status_code == 303  # a different visitor still signs in
+
+
+def test_ip_header_is_ignored_unless_configured(client):
+    make_admin(client)
+    for i in range(6):
+        token = login_token(client)
+        client.post("/admin/login", content=f"csrf={token}&login=nobody&password=wrong-wrong-wrong", follow_redirects=False,
+                    headers={"content-type": "application/x-www-form-urlencoded", "cookie": f"mik_login_csrf={token}",
+                             "CF-Connecting-IP": f"203.0.113.{i}"})  # a forged header must not dodge the lock
+    assert login(client).status_code == 429
+
+
 def test_old_noise_in_audit_log_is_purged_but_history_kept(client):
     uid = make_admin(client)
     old = datetime.now(timezone.utc) - timedelta(days=120)
