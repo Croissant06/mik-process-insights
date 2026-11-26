@@ -74,6 +74,7 @@ services:
       MAX_BACKDATE_DAYS: ${MIK_MAX_BACKDATE_DAYS:-}
       ATTACHMENT_SCAN_HOST: scanner
       FORWARDED_ALLOW_IPS: ${MIK_TRUSTED_PROXY_IPS:-127.0.0.1}
+      CLIENT_IP_HEADER: ${MIK_CLIENT_IP_HEADER:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

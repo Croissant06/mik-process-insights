@@ -96,6 +96,11 @@ class Settings:
     # PROVISIONAL pilot retention (days from submission) for named reports and their attachments. Only used by the
     # owner-run review script scripts/retention_review.py; nothing is ever deleted automatically.
     retention_days: int = 90
+    # Request header that carries the visitor's real IP, set ONLY by a proxy we trust (e.g. "CF-Connecting-IP" behind
+    # the Cloudflare tunnel). Empty = use the TCP peer address. Without it, every visitor behind the tunnel shares one
+    # address, so five wrong admin logins would lock out every admin. Only enable it when the app port is reachable
+    # solely through that proxy (hosted compose binds it to 127.0.0.1), or the header could be forged.
+    client_ip_header: str | None = None
 
     def __post_init__(self):
         if self.environment not in HOSTED_ENVS:
@@ -134,6 +139,7 @@ class Settings:
             attachment_scan_host=os.environ.get("ATTACHMENT_SCAN_HOST", "").strip() or None,
             attachment_scan_port=int(os.environ.get("ATTACHMENT_SCAN_PORT", "3310")),
             retention_days=_parse_retention(os.environ.get("RETENTION_DAYS")),
+            client_ip_header=os.environ.get("CLIENT_IP_HEADER", "").strip() or None,
         )
         if web and environment not in DEV_ENVS:
             # Anything that is not local development is treated as real use: HTTPS only, exact trusted origins.
