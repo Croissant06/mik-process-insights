@@ -56,6 +56,17 @@ Verify the HTTPS form from a phone on mobile data and a computer outside the off
 - Use a production Compose project and volume separate from the synthetic demo if staging was run on the host. Give production a separate origin and port if both stacks will coexist. Apply the same admin restriction.
 - Create the real admin accounts on production only. Run the host smoke checks and verify a restored backup before enabling employee access.
 
+## Updating the running stack
+
+On the VM, from the repository folder:
+
+```sh
+sudo bash scripts/deploy.sh --check   # show the commits and files that would change; touches nothing
+sudo bash scripts/deploy.sh           # same, then asks for "deploy" before changing anything
+```
+
+After confirmation it takes a `pg_dump -Fc` backup to `/root/mik-backups` (mode 600, verified with `pg_restore --list`), fast-forwards the checkout to `origin/development`, rebuilds the image, lets `migrate` run `alembic upgrade head`, restarts `web` and checks `/healthz` plus the local proxy. If the check fails it puts the code back to the previous commit and restarts; it does not undo migrations, and prints the restore command for the backup it just took. It never runs `down` or removes volumes. Private overrides in `private/compose.*.yml` are picked up automatically.
+
 ## Backup and restore
 
 From the deployment directory, use the database owner for backups. Keep files in protected company storage and transfer backups off the server under the agreed policy.
