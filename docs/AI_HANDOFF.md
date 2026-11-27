@@ -132,7 +132,8 @@ Test results (confirmed):
 4. Employee notice (`docs/business/EMPLOYEE_NOTICE_BG.md`) with the form link; retention 90 days still provisional, nothing deletes automatically.
 5. Fri 27 Nov or later: add `insights.mikltd.eu` to the tunnel and allowed origins, keep `mik-insights.com` redirecting for a few weeks. Move Cloudflare/GCP ownership to company addresses.
 6. Restrict SSH to Google IAP (35.235.240.0/20). Note: `gcloud compute ssh` added Presiyan's key to project-wide metadata.
-7. PR #2 stays open until Presiyan authorizes a merge.
+7. ~~PR #2 stays open until Presiyan authorizes a merge.~~ Merged 24 Nov.
+8. Deploys: `sudo bash scripts/deploy.sh` on the VM (manual, asks for "deploy", backs up first; see `docs/HOSTED_DEPLOYMENT.md`). 27 Nov: VM already at `development` c594d1d, nothing to pull.
 
 ### Prior plans (historical)
 0. ~~Merge PR #1~~ done (merged 2026-11-17, 52cb5ef). Final local Docker test run: 65/65 passed.
